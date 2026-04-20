@@ -105,7 +105,7 @@ const wchar_t *Context_NavOrder = nullptr;
 const wchar_t *Context_SortAscending = nullptr;
 const wchar_t *Context_SortDescending = nullptr;
 const wchar_t *Context_Settings = nullptr;
-const wchar_t *Context_About = nullptr;
+
 const wchar_t *Context_CompareMode = nullptr; // New
 const wchar_t *Context_GalleryOpenCompare = nullptr;
 const wchar_t *Context_GalleryOpenNewWindow = nullptr;
@@ -660,7 +660,7 @@ struct EN {
   static constexpr const wchar_t *Context_SortAscending = L"Ascending";
   static constexpr const wchar_t *Context_SortDescending = L"Descending";
   static constexpr const wchar_t *Context_Settings = L"Settings...";
-  static constexpr const wchar_t *Context_About = L"About QuickView";
+
   static constexpr const wchar_t *Context_CompareMode = L"Compare Mode\tC";
   static constexpr const wchar_t *Context_GalleryOpenCompare =
       L"Open in Compare Mode";
@@ -1373,7 +1373,7 @@ struct CN {
   static constexpr const wchar_t *Context_SortAscending = L"升序";
   static constexpr const wchar_t *Context_SortDescending = L"降序";
   static constexpr const wchar_t *Context_Settings = L"设置...";
-  static constexpr const wchar_t *Context_About = L"关于 QuickView";
+
   static constexpr const wchar_t *Context_CompareMode = L"对比模式\tC";
   static constexpr const wchar_t *Context_GalleryOpenCompare =
       L"在对比模式中打开";
@@ -1726,7 +1726,7 @@ struct TW {
   static constexpr const wchar_t *Context_SortAscending = L"升冪";
   static constexpr const wchar_t *Context_SortDescending = L"降冪";
   static constexpr const wchar_t *Context_Settings = L"設定...";
-  static constexpr const wchar_t *Context_About = L"關於 QuickView";
+
   static constexpr const wchar_t *Context_CompareMode = L"對比模式\tC";
   static constexpr const wchar_t *Context_GalleryOpenCompare =
       L"在對比模式中打開";
@@ -2249,7 +2249,7 @@ struct JA {
   static constexpr const wchar_t *Context_SortAscending = L"昇順";
   static constexpr const wchar_t *Context_SortDescending = L"降順";
   static constexpr const wchar_t *Context_Settings = L"設定...";
-  static constexpr const wchar_t *Context_About = L"QuickViewについて";
+
   static constexpr const wchar_t *Context_CompareMode = L"比較モード\tC";
   static constexpr const wchar_t *Context_GalleryOpenCompare =
       L"比較モードで開く";
@@ -2798,7 +2798,7 @@ struct RU {
   static constexpr const wchar_t *Context_SortAscending = L"По возрастанию";
   static constexpr const wchar_t *Context_SortDescending = L"По убыванию";
   static constexpr const wchar_t *Context_Settings = L"Настройки...";
-  static constexpr const wchar_t *Context_About = L"О программе QuickView";
+
   static constexpr const wchar_t *Context_CompareMode = L"Режим сравнения\tC";
   static constexpr const wchar_t *Context_GalleryOpenCompare =
       L"Открыть в режиме сравнения";
@@ -3374,7 +3374,7 @@ struct DE {
   static constexpr const wchar_t *Context_SortAscending = L"Aufsteigend";
   static constexpr const wchar_t *Context_SortDescending = L"Absteigend";
   static constexpr const wchar_t *Context_Settings = L"Einstellungen...";
-  static constexpr const wchar_t *Context_About = L"Über QuickView";
+
   static constexpr const wchar_t *Context_CompareMode = L"Vergleichsmodus\tC";
   static constexpr const wchar_t *Context_GalleryOpenCompare =
       L"Im Vergleichsmodus öffnen";
@@ -3935,7 +3935,7 @@ struct ES {
   static constexpr const wchar_t *Context_SortAscending = L"Ascendente";
   static constexpr const wchar_t *Context_SortDescending = L"Descendente";
   static constexpr const wchar_t *Context_Settings = L"Configuración...";
-  static constexpr const wchar_t *Context_About = L"Acerca de QuickView";
+
   static constexpr const wchar_t *Context_CompareMode = L"Modo comparación\tC";
   static constexpr const wchar_t *Context_GalleryOpenCompare =
       L"Abrir en modo de comparación";
@@ -4384,7 +4384,7 @@ template <typename T> void ApplyT() {
   Context_SortAscending = T::Context_SortAscending;
   Context_SortDescending = T::Context_SortDescending;
   Context_Settings = T::Context_Settings;
-  Context_About = T::Context_About;
+
   Context_CompareMode = T::Context_CompareMode;
   Context_GalleryOpenCompare = T::Context_GalleryOpenCompare;
   Context_GalleryOpenNewWindow = T::Context_GalleryOpenNewWindow;

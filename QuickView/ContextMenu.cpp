@@ -170,8 +170,7 @@ void ShowContextMenu(HWND hwnd, POINT pt, bool hasImage, bool needsExtensionFix,
     items.push_back(MI::Sep());
 
     // --- Settings Group ---
-    items.push_back(MI::Normal(IDM_SETTINGS, AppStrings::Context_Settings, Icons::Settings, L"Ctrl+,"));
-    items.push_back(MI::Normal(IDM_ABOUT, AppStrings::Context_About, Icons::About, L"Alt+Enter"));
+    items.push_back(MI::Normal(IDM_SETTINGS, AppStrings::Context_Settings, Icons::Settings));
     items.push_back(MI::Normal(IDM_EXIT, AppStrings::Context_Exit, Icons::Exit, L"MButton"));
 
     // ========================================================

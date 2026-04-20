@@ -59,7 +59,6 @@ enum ContextMenuCommand : UINT {
 
     // [應用設置] Group
     IDM_SETTINGS,
-    IDM_ABOUT,
     IDM_EXIT,
 
     // [Sorting & Navigation] Options

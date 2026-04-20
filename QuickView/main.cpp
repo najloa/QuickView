@@ -9862,18 +9862,7 @@ SKIP_EDGE_NAV:;
             RequestRepaint(PaintLayer::Static);
             break;
         }
-        case IDM_ABOUT: {
-            if (g_settingsOverlay.IsVisible()) {
-                // If already visible, just switch tab? Or toggle off?
-                // Standard behavior: bring to front / switch tab
-                g_settingsOverlay.OpenTab(5);
-            } else {
-                SaveOverlayWindowState(hwnd);
-                g_settingsOverlay.OpenTab(5); // Open About Tab
-            }
-            RequestRepaint(PaintLayer::Static); // Force redraw to show overlay immediately
-            break;
-        }
+
         case IDM_EXIT: {
             if (CheckUnsavedChanges(hwnd)) PostMessage(hwnd, WM_CLOSE, 0, 0);
             break;
