@@ -540,7 +540,19 @@ bool CompositionEngine::RefreshDisplayColorState(bool forceHdrSimulation) {
     m_surfaceFormat = m_isAdvancedColor ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_B8G8R8A8_UNORM;
 
     if (m_isAdvancedColor) {
-        QV_LOG("Composition_HDR", TraceLoggingString("AdvancedColor FP16 scRGB Active", "Action"));
+        QV_LOG("Composition_HDR",
+            TraceLoggingString("AdvancedColor FP16 scRGB Active", "Action"),
+            TraceLoggingInt32((int)m_surfaceFormat, "SurfaceFormat"),
+            TraceLoggingBool(m_allowAdvancedColor, "AllowAdvancedColor"),
+            TraceLoggingFloat32(m_displayColorInfo.GetState().maxLuminanceNits, "DisplayMaxNits"),
+            TraceLoggingFloat32(m_displayColorInfo.GetState().sdrWhiteLevelNits, "SdrWhiteNits"),
+            TraceLoggingBool(m_displayColorInfo.GetState().advancedColorActive, "AdvancedColorActive"));
+    } else {
+        QV_LOG("Composition_HDR",
+            TraceLoggingString("SDR BGRA8 Mode", "Action"),
+            TraceLoggingInt32((int)m_surfaceFormat, "SurfaceFormat"),
+            TraceLoggingBool(m_allowAdvancedColor, "AllowAdvancedColor"),
+            TraceLoggingBool(m_displayColorInfo.GetState().advancedColorSupported, "AdvancedColorSupported"));
     }
 
     return changed;

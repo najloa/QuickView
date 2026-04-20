@@ -196,11 +196,14 @@ BuildToneMapSettings(const QuickView::RawImageFrame &frame,
 
   float contentPeakScRgb = 1.0f;
   float contentAverageScRgb = 0.0f;
+  const char* contentPeakSource = "Default_1.0";
   if (frame.hdrMetadata.hasNitsMetadata) {
     if (frame.hdrMetadata.maxCLLNits > 0.0f) {
       contentPeakScRgb = frame.hdrMetadata.maxCLLNits / 80.0f;
+      contentPeakSource = "Metadata_MaxCLL";
     } else if (frame.hdrMetadata.masteringMaxNits > 0.0f) {
       contentPeakScRgb = frame.hdrMetadata.masteringMaxNits / 80.0f;
+      contentPeakSource = "Metadata_MasteringMax";
     }
 
     if (frame.hdrMetadata.maxFALLNits > 0.0f) {
@@ -210,6 +213,7 @@ BuildToneMapSettings(const QuickView::RawImageFrame &frame,
 
   if (contentPeakScRgb <= 1.0f) {
     contentPeakScRgb = InternalEstimateFramePeakScRgb(frame);
+    if (contentPeakScRgb > 1.0f) contentPeakSource = "Estimated_PixelScan";
   }
 
   if (contentPeakScRgb <= 1.0f && IsHdrLikeFrame(frame)) {
@@ -221,15 +225,25 @@ BuildToneMapSettings(const QuickView::RawImageFrame &frame,
     case QuickView::TransferFunction::PQ:
     case QuickView::TransferFunction::HLG:
       contentPeakScRgb = 12.5f; // 1000 nits reference fallback
+      contentPeakSource = "Fallback_PQ_HLG_1000nits";
       break;
     case QuickView::TransferFunction::Linear:
       contentPeakScRgb = 4.0f;
+      contentPeakSource = "Fallback_Linear_320nits";
       break;
     default:
       contentPeakScRgb = 2.0f;
+      contentPeakSource = "Fallback_Generic_160nits";
       break;
     }
   }
+
+  QV_LOG("Render_ContentPeakSource",
+      TraceLoggingString(contentPeakSource, "Source"),
+      TraceLoggingFloat32(contentPeakScRgb, "ContentPeakScRgb"),
+      TraceLoggingFloat32(contentPeakScRgb * 80.0f, "ContentPeakNits"),
+      TraceLoggingFloat32(frame.hdrMetadata.maxCLLNits, "RawMaxCLL"),
+      TraceLoggingFloat32(frame.hdrMetadata.masteringMaxNits, "RawMasteringMax"));
 
   settings.contentPeakScRgb = (contentPeakScRgb > 1.0f ? contentPeakScRgb : 1.0f);
   settings.displayPeakScRgb = displayPeakScRgb;
@@ -647,9 +661,19 @@ CRenderEngine::UploadRawFrameToGPU(const QuickView::RawImageFrame &frame,
                                     m_bakeCache.auxTexture != nullptr);
 
           if (useCachedTextures && fabsf(m_bakeCache.lastHeadroom - payload.targetHeadroom) < 0.001f && m_bakeCache.bakedBitmap) {
+              QV_LOG("Render_BakeCache",
+                  TraceLoggingString("CACHE HIT - No recomposition", "Action"),
+                  TraceLoggingFloat32(m_bakeCache.lastHeadroom, "CachedHeadroom"),
+                  TraceLoggingFloat32(payload.targetHeadroom, "RequestedHeadroom"));
               m_bakeCache.bakedBitmap.CopyTo(outBitmap);
               return S_OK;
           }
+
+          QV_LOG("Render_BakeCache",
+              TraceLoggingString(useCachedTextures ? "CACHE MISS - Recompose (headroom changed)" : "CACHE MISS - Full Upload + Bake", "Action"),
+              TraceLoggingFloat32(m_bakeCache.lastHeadroom, "PrevHeadroom"),
+              TraceLoggingFloat32(payload.targetHeadroom, "NewHeadroom"),
+              TraceLoggingBool(useCachedTextures, "TexturesCached"));
 
           ComPtr<ID3D11Texture2D> pBaked;
           HRESULT hrBake = S_OK;
@@ -728,6 +752,33 @@ CRenderEngine::UploadRawFrameToGPU(const QuickView::RawImageFrame &frame,
       TraceLoggingInt32((int)frame.blendOp, "BlendOp"),
       TraceLoggingBool(m_isAdvancedColor, "AdvColor"));
 
+  // [Diagnostic] Full HDR metadata dump - critical for remote debugging
+  if (frame.hdrMetadata.isValid || frame.hdrMetadata.isHdr || frame.hdrMetadata.hasGainMap) {
+      QV_LOG("Render_ImageHdrMeta",
+          TraceLoggingBool(frame.hdrMetadata.isHdr, "IsHdr"),
+          TraceLoggingBool(frame.hdrMetadata.hasGainMap, "HasGainMap"),
+          TraceLoggingBool(frame.hdrMetadata.gainMapApplied, "GainMapApplied"),
+          TraceLoggingBool(frame.hdrMetadata.isSceneLinear, "IsSceneLinear"),
+          TraceLoggingBool(frame.hdrMetadata.hasNitsMetadata, "HasNitsMetadata"),
+          TraceLoggingInt32((int)frame.hdrMetadata.transfer, "Transfer"),
+          TraceLoggingInt32((int)frame.hdrMetadata.primaries, "Primaries"),
+          TraceLoggingFloat32(frame.hdrMetadata.maxCLLNits, "MaxCLL"),
+          TraceLoggingFloat32(frame.hdrMetadata.maxFALLNits, "MaxFALL"),
+          TraceLoggingFloat32(frame.hdrMetadata.masteringMinNits, "MasteringMin"),
+          TraceLoggingFloat32(frame.hdrMetadata.masteringMaxNits, "MasteringMax"),
+          TraceLoggingFloat32(frame.hdrMetadata.gainMapBaseHeadroom, "GainMapBaseHeadroom"),
+          TraceLoggingFloat32(frame.hdrMetadata.gainMapAlternateHeadroom, "GainMapAltHeadroom"),
+          TraceLoggingFloat32(frame.hdrMetadata.gainMapAppliedHeadroom, "GainMapAppliedHeadroom"));
+  }
+
+  // [Diagnostic] Pixel color info
+  QV_LOG("Render_PixelColorInfo",
+      TraceLoggingInt32((int)frame.colorInfo.dataSpace, "DataSpace"),
+      TraceLoggingInt32((int)frame.colorInfo.transfer, "Transfer"),
+      TraceLoggingInt32((int)frame.colorInfo.primaries, "Primaries"),
+      TraceLoggingInt32((int)frame.colorInfo.nominalBitDepth, "BitDepth"),
+      TraceLoggingBool(frame.colorInfo.hasEmbeddedIcc, "HasICC"));
+
   switch (frame.format) {
   case QuickView::PixelFormat::BGRA8888:
     dxgiFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -758,6 +809,19 @@ CRenderEngine::UploadRawFrameToGPU(const QuickView::RawImageFrame &frame,
   ComPtr<ID2D1Bitmap1> rawBitmap;
   int effectiveCmsMode = g_runtime.GetEffectiveCmsMode(g_config.ColorManagement);
   const bool useHdrOutput = ShouldUseHdrOutputForFrame(frame);
+
+  // [Diagnostic] HDR routing decision + full display state snapshot
+  QV_LOG("Render_HdrRouting",
+      TraceLoggingBool(useHdrOutput, "UseHdrOutput"),
+      TraceLoggingBool(m_isAdvancedColor, "IsAdvancedColor"),
+      TraceLoggingBool(m_displayColorState.advancedColorActive, "DisplayAdvColorActive"),
+      TraceLoggingBool(m_displayColorState.advancedColorSupported, "DisplayAdvColorSupported"),
+      TraceLoggingFloat32(m_displayColorState.maxLuminanceNits, "DisplayMaxNits"),
+      TraceLoggingFloat32(m_displayColorState.sdrWhiteLevelNits, "DisplaySdrWhiteNits"),
+      TraceLoggingFloat32(m_displayColorState.minLuminanceNits, "DisplayMinNits"),
+      TraceLoggingFloat32(m_displayColorState.maxFullFrameLuminanceNits, "DisplayMaxFullFrameNits"),
+      TraceLoggingInt32((int)m_displayColorState.colorSpace, "DisplayColorSpace"),
+      TraceLoggingFloat32(g_config.HdrPeakNitsOverride, "HdrPeakNitsOverride"));
 
   if (frame.format == QuickView::PixelFormat::R32G32B32A32_FLOAT) {
       BuildLinearScRgbFloatBuffer(frame, linearScRgbPixels, &uploadPixels, &uploadStride);
@@ -799,6 +863,12 @@ CRenderEngine::UploadRawFrameToGPU(const QuickView::RawImageFrame &frame,
               }
           }
           if (!rawBitmap) {
+              // PASSTHROUGH: No tone mapping applied - content fits within display range
+              QV_LOG("Render_ToneMapDecision",
+                  TraceLoggingString("HDR PASSTHROUGH - No ToneMap (content <= display)", "Shader"),
+                  TraceLoggingFloat32(toneMapSettings.displayPeakScRgb, "DisplayPeak"),
+                  TraceLoggingFloat32(toneMapSettings.contentPeakScRgb, "ContentPeak"),
+                  TraceLoggingBool(m_computeEngine && m_computeEngine->IsAvailable(), "ComputeAvailable"));
               D2D1_BITMAP_PROPERTIES1 hdrProps = GetDefaultBitmapProps(
                   DXGI_FORMAT_R32G32B32A32_FLOAT, D2D1_ALPHA_MODE_STRAIGHT);
               hdrProps.colorContext = scRgbContext.Get();
