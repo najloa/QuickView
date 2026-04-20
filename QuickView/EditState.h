@@ -12,6 +12,8 @@
 #include <vector>
 #include "LosslessTransform.h"
 
+extern HCURSOR g_currentCursor;
+
 struct EditState {
     bool IsDirty = false;               // Has unsaved changes
     std::wstring TempFilePath;          // Temp file path

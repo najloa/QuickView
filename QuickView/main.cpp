@@ -2378,30 +2378,31 @@ void ReleaseImageResources() {
 
 DialogLayout CalculateDialogLayout(D2D1_SIZE_F size) {
     DialogLayout layout;
-    float dlgW = 420.0f;
+    const float s = g_uiScale;
+    float dlgW = 350.0f * s;
     
     // Calculate required height based on content
     // Title line: ~30px, Message lines: estimate based on length, Buttons: 50px, Padding: 40px
-    float titleHeight = 35.0f;
-    float messageHeight = 25.0f;
+    float titleHeight = 30.0f * s;
+    float messageHeight = 22.0f * s;
     
     // Estimate title wrapping (assume ~25 chars per line at this width)
-    int titleLines = (int)(g_dialog.Title.length() / 22) + 1;
+    int titleLines = (int)(g_dialog.Title.length() / 20) + 1;
     if (titleLines > 3) titleLines = 3;  // Max 3 lines
     
     // Message usually single line
     int msgLines = 1;
     
     float contentHeight = (titleLines * titleHeight) + (msgLines * messageHeight);
-    float qualityHeight = !g_dialog.QualityText.empty() ? 30.0f : 0.0f; // Add space for quality text
-    float inputHeight = g_dialog.HasInput ? 50.0f : 0.0f; // [Input Mode] Space for edit box
-    float checkboxHeight = g_dialog.HasCheckbox ? 45.0f : 0.0f;
-    float buttonsHeight = 55.0f;
-    float padding = 45.0f; // Increased padding
+    float qualityHeight = !g_dialog.QualityText.empty() ? 28.0f * s : 0.0f; // Add space for quality text
+    float inputHeight = g_dialog.HasInput ? 45.0f * s : 0.0f; // [Input Mode] Space for edit box
+    float checkboxHeight = g_dialog.HasCheckbox ? 40.0f * s : 0.0f;
+    float buttonsHeight = 50.0f * s;
+    float padding = 32.0f * s; 
     
-    float dlgH = padding + contentHeight + qualityHeight + inputHeight + checkboxHeight + buttonsHeight + 30.0f; // More buffer
-    if (dlgH < 200.0f) dlgH = 200.0f;  // Increased minimum height
-    if (dlgH > 400.0f) dlgH = 400.0f;  // Increased maximum height
+    float dlgH = padding + contentHeight + qualityHeight + inputHeight + checkboxHeight + buttonsHeight + 20.0f * s; 
+    if (dlgH < 160.0f * s) dlgH = 160.0f * s;
+    if (dlgH > 350.0f * s) dlgH = 350.0f * s;
     
     auto clamp = [](float v, float minV, float maxV) {
         if (v < minV) return minV;
@@ -2413,7 +2414,7 @@ DialogLayout CalculateDialogLayout(D2D1_SIZE_F size) {
     if (g_dialog.UseCustomCenter) {
         left = g_dialog.CustomCenter.x - dlgW * 0.5f;
         top = g_dialog.CustomCenter.y - dlgH * 0.5f;
-        const float margin = 8.0f;
+        const float margin = 8.0f * s;
         float maxLeft = size.width - dlgW - margin;
         float maxTop = size.height - dlgH - margin;
         if (maxLeft < margin) maxLeft = margin;
@@ -2427,31 +2428,31 @@ DialogLayout CalculateDialogLayout(D2D1_SIZE_F size) {
     float currentY = top + padding + contentHeight;
     
     if (g_dialog.HasInput) {
-        layout.Input = D2D1::RectF(left + 25, currentY + 10, left + dlgW - 25, currentY + 40);
+        layout.Input = D2D1::RectF(left + 25.0f * s, currentY + 10.0f * s, left + dlgW - 25.0f * s, currentY + 40.0f * s);
         currentY += inputHeight;
     }
 
     // Checkbox area (only used if HasCheckbox)
     // float checkY = top + dlgH - 95; // Old absolute positioning
     // Let's stack it properly if we have flexible height
-    float checkY = currentY + qualityHeight + 10; 
+    float checkY = currentY + qualityHeight + 10.0f * s; 
     
     // Use bottom-aligned logic for checkbox usually to stick to buttons
     if (g_dialog.HasCheckbox) {
          // Stick to bottom area above buttons
-         checkY = top + dlgH - 45 - buttonsHeight - 10;
+         checkY = top + dlgH - 45.0f * s - buttonsHeight - 10.0f * s;
     }
-    layout.Checkbox = D2D1::RectF(left + 25, checkY, left + 45, checkY + 20);
+    layout.Checkbox = D2D1::RectF(left + 25.0f * s, checkY, left + 45.0f * s, checkY + 20.0f * s);
     
     // Buttons area
-    float btnW = 95.0f;
-    float btnH = 30.0f;
-    float btnGap = 12.0f;
+    float btnW = 95.0f * s;
+    float btnH = 30.0f * s;
+    float btnGap = 12.0f * s;
     float totalBtnWidth = (g_dialog.Buttons.size() * btnW) + ((g_dialog.Buttons.size() - 1) * btnGap);
-    float startX = left + dlgW - 20 - totalBtnWidth;
-    if (startX < left + 20) startX = left + 20; // Safety clamp
+    float startX = left + dlgW - 20.0f * s - totalBtnWidth;
+    if (startX < left + 20.0f * s) startX = left + 20.0f * s; // Safety clamp
     
-    float btnY = top + dlgH - 45;
+    float btnY = top + dlgH - 45.0f * s;
     
     for (size_t i = 0; i < g_dialog.Buttons.size(); ++i) {
         layout.Buttons.push_back(D2D1::RectF(startX + i * (btnW + btnGap), btnY, startX + i * (btnW + btnGap) + btnW, btnY + btnH));
@@ -3631,8 +3632,8 @@ void DrawDialog(ID2D1DeviceContext* context, const RECT& clientRect) {
         geekGlass.InitializeResources(context);
         QuickView::UI::GeekGlass::GeekGlassConfig config;
         config.panelBounds = layout.Box;
-        config.cornerRadius = 10.0f;
-        config.blurStandardDeviation = 24.0f; 
+        config.cornerRadius = 10.0f * g_uiScale;
+        config.blurStandardDeviation = 24.0f * g_uiScale; 
         config.opacity = g_config.GlassModalsOpacity / 100.0f;
         config.tintProfile = g_config.GlassTintProfile;
         config.customTintColor = D2D1::ColorF(g_config.GlassCustomTintR, g_config.GlassCustomTintG, g_config.GlassCustomTintB, g_config.GlassTintAlpha);
@@ -3649,7 +3650,7 @@ void DrawDialog(ID2D1DeviceContext* context, const RECT& clientRect) {
         context->CreateSolidColorBrush(fillerColor, &materialBrush);
         if (materialBrush) {
             materialBrush->SetOpacity(masterOpacity);
-            context->FillRoundedRectangle(D2D1::RoundedRect(layout.Box, 10.0f, 10.0f), materialBrush.Get());
+            context->FillRoundedRectangle(D2D1::RoundedRect(layout.Box, 10.0f * g_uiScale, 10.0f * g_uiScale), materialBrush.Get());
         }
 
         geekGlass.DrawGeekGlassToppings(context, config);
@@ -3658,13 +3659,13 @@ void DrawDialog(ID2D1DeviceContext* context, const RECT& clientRect) {
         bool isLight = IsLightThemeActive();
         D2D1_COLOR_F bgClr = isLight ? D2D1::ColorF(0.95f, 0.95f, 0.97f, 1.0f) : D2D1::ColorF(0.18f, 0.18f, 0.18f, 1.0f);
         context->CreateSolidColorBrush(D2D1::ColorF(bgClr.r, bgClr.g, bgClr.b, g_config.GlassModalsOpacity / 100.0f), &pBgBrush);
-        context->FillRoundedRectangle(D2D1::RoundedRect(layout.Box, 10.0f, 10.0f), pBgBrush.Get());
+        context->FillRoundedRectangle(D2D1::RoundedRect(layout.Box, 10.0f * g_uiScale, 10.0f * g_uiScale), pBgBrush.Get());
     }
     
     // Border
     ComPtr<ID2D1SolidColorBrush> pBorderBrush;
     context->CreateSolidColorBrush(g_dialog.AccentColor, &pBorderBrush);
-    context->DrawRoundedRectangle(D2D1::RoundedRect(layout.Box, 10.0f, 10.0f), pBorderBrush.Get(), 2.0f);
+    context->DrawRoundedRectangle(D2D1::RoundedRect(layout.Box, 10.0f * g_uiScale, 10.0f * g_uiScale), pBorderBrush.Get(), 2.0f * g_uiScale);
     
     // Fonts
     static ComPtr<IDWriteFactory> pDW;
@@ -3672,17 +3673,25 @@ void DrawDialog(ID2D1DeviceContext* context, const RECT& clientRect) {
     static ComPtr<IDWriteTextFormat> fmtBody;
     static ComPtr<IDWriteTextFormat> fmtBtn;
     static ComPtr<IDWriteTextFormat> fmtBtnCenter; // New centered format
+    static float s_lastUiScale = 0.0f;
+    if (s_lastUiScale != g_uiScale) {
+        s_lastUiScale = g_uiScale;
+        fmtTitle.Reset();
+        fmtBody.Reset();
+        fmtBtn.Reset();
+        fmtBtnCenter.Reset();
+    }
     
     if (!pDW) DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(pDW.GetAddressOf()));
     if (pDW) {
         if (!fmtTitle) {
-            pDW->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 18.0f, L"en-us", &fmtTitle);
+            pDW->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 17.0f * g_uiScale, L"en-us", &fmtTitle);
             if (fmtTitle) fmtTitle->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
         }
-        if (!fmtBody) pDW->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 13.0f, L"en-us", &fmtBody);
-        if (!fmtBtn) pDW->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 14.0f, L"en-us", &fmtBtn);
+        if (!fmtBody) pDW->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 12.0f * g_uiScale, L"en-us", &fmtBody);
+        if (!fmtBtn) pDW->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 13.0f * g_uiScale, L"en-us", &fmtBtn);
         if (!fmtBtnCenter) {
-             pDW->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 14.0f, L"en-us", &fmtBtnCenter);
+             pDW->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 13.0f * g_uiScale, L"en-us", &fmtBtnCenter);
              if (fmtBtnCenter) fmtBtnCenter->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
              if (fmtBtnCenter) fmtBtnCenter->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
         }
@@ -5984,6 +5993,7 @@ static void TryCleanupOldVersion(int argc, LPWSTR* argv) {
         }
     }
 }
+HCURSOR g_currentCursor = nullptr;
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int nCmdShow) {
     // === Priority 0: CMD Parsing & Subprocess dispatch ===
@@ -6269,25 +6279,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
             SetCursor(LoadCursor(nullptr, IDC_WAIT));
             return TRUE;
         }
-        // Edge Nav Cursor: Only for Cursor mode (NavIndicator == 1)
-        if (g_config.EdgeNavClick && g_config.NavIndicator == 1) {
-            if (!g_gallery.IsVisible() && !g_settingsOverlay.IsVisible() && !g_helpOverlay.IsVisible() && !g_dialog.IsVisible) {
-                bool hoverEdge = false;
-                if (IsCompareModeActive()) {
-                    hoverEdge = (g_viewState.EdgeHoverLeft != 0) || (g_viewState.EdgeHoverRight != 0);
-                } else {
-                    hoverEdge = (g_viewState.EdgeHoverState != 0);
-                }
-                if (hoverEdge) {
-                    SetCursor(LoadCursor(nullptr, IDC_HAND));
-                    return TRUE;
-                }
-            }
-        }
-        
-        // Default Client Cursor (Arrow) - Fixes stuck Wait cursor
+
+        // Default Client Cursor - Coordinate with WM_MOUSEMOVE to prevent Win10 flicker
         if (LOWORD(lParam) == HTCLIENT) {
-            SetCursor(LoadCursor(nullptr, IDC_ARROW));
+            SetCursor(g_currentCursor ? g_currentCursor : LoadCursor(nullptr, IDC_ARROW));
             return TRUE;
         }
     }
@@ -6725,7 +6720,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
         }
         return 0;
 
-    case WM_SIZE: 
+    case WM_SIZE: {
+        static bool s_wasMinimized = false;
         if (wParam == SIZE_MAXIMIZED) {
              // Force Square Corners when maximized (Standard Windows behavior)
              ApplyWindowCornerPreference(hwnd, false);
@@ -6734,9 +6730,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
              ApplyWindowCornerPreference(hwnd, g_config.RoundedCorners);
         }
 
-        if (wParam != SIZE_MINIMIZED) {
+        if (wParam == SIZE_MINIMIZED) {
+             s_wasMinimized = true;
+        } else {
             OnResize(hwnd, LOWORD(lParam), HIWORD(lParam));
             const bool deferZoomResizeSync = g_deferProgrammaticZoomResizeSync;
+            
+            // [Fix] Windows 10 DComp Restore: Force redraw after minimized
+            bool forceCommit = false;
+            if (s_wasMinimized) {
+                RequestRepaint(PaintLayer::All);
+                forceCommit = true;
+                s_wasMinimized = false;
+            }
             
             // NOTE: Do not reset zoom/pan here. Window resize should not implicitly
             // reset user's manual zoom state.
@@ -6796,8 +6802,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
             g_runtime.screenWidth = LOWORD(lParam);
             g_runtime.screenHeight = HIWORD(lParam);
             if (g_imageEngine) g_imageEngine->UpdateConfig(g_runtime);
+            
+            // [Fix] Commit after SyncDCompState to ensure background and layout changes 
+            // are atomically presented when recovering from minimization.
+            if (forceCommit && g_compEngine) {
+                g_compEngine->Commit();
+            }
         }
         return 0;
+    }
 
     case WM_DPICHANGED: {
         // Handle DPI change (e.g., window dragged to different monitor)
@@ -6850,6 +6863,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
     
      // Mouse Interaction
      case WM_MOUSEMOVE: {
+          g_currentCursor = LoadCursor(nullptr, IDC_ARROW);
+
           if (!isTracking) {
              TRACKMOUSEEVENT tme = { sizeof(TRACKMOUSEEVENT), TME_LEAVE, hwnd, 0 };
              TrackMouseEvent(&tme);
@@ -6860,7 +6875,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
               g_compare.activePane = HitTestComparePane(hwnd, pt);
           }
           if (IsNearCompareDivider(hwnd, pt)) {
-              SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+              g_currentCursor = LoadCursor(nullptr, IDC_SIZEWE);
               if (!g_compare.showDividerHandle) {
                   g_compare.showDividerHandle = true;
                   SetTimer(hwnd, 999, 16, nullptr); // Fade in timer
@@ -7023,7 +7038,7 @@ SKIP_EDGE_NAV:;
           
           // Set hand cursor when hovering toolbar buttons
           if (g_toolbar.IsVisible() && g_toolbar.HitTest((float)pt.x, (float)pt.y)) {
-              SetCursor(LoadCursor(nullptr, IDC_HAND));
+              g_currentCursor = LoadCursor(nullptr, IDC_HAND);
           }
           
           SetTimer(hwnd, 997, 16, nullptr); // Drive animation logic
@@ -7058,7 +7073,7 @@ SKIP_EDGE_NAV:;
 
               // Hand cursor for window control buttons
               if (g_winCtrlHoverState != -1) {
-                  SetCursor(LoadCursor(nullptr, IDC_HAND));
+                  g_currentCursor = LoadCursor(nullptr, IDC_HAND);
               }
           }
 
@@ -7210,7 +7225,7 @@ SKIP_EDGE_NAV:;
               auto hit = g_uiRenderer->HitTest(mx, my);
               
               if (hit.type != UIHitResult::None && !(hit.type == UIHitResult::InfoRow && hit.rowIndex == -2)) {
-                  SetCursor(LoadCursor(nullptr, IDC_HAND));
+                  g_currentCursor = LoadCursor(nullptr, IDC_HAND);
               }
               
               // Repaint on hover state change (type OR row index)
@@ -7222,6 +7237,8 @@ SKIP_EDGE_NAV:;
               }
           }
          } // End of !g_gallery.IsVisible() guard
+         
+         SetCursor(g_currentCursor);
          return 0;
     }
     case WM_MOUSELEAVE:

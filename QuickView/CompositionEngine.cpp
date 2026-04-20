@@ -855,6 +855,9 @@ HRESULT CompositionEngine::CreateAllSurfaces(UINT width, UINT height) {
         m_backgroundLayer.width = width;
         m_backgroundLayer.height = height;
         m_backgroundLayer.visual->SetContent(m_backgroundLayer.surface.Get());
+        
+        // [Fix] Force background redraw since the surface was just created blank
+        m_lastBgW = 0;
     }
     return hr;
 }

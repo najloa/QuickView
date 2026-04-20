@@ -3183,7 +3183,7 @@ SettingsAction SettingsOverlay::OnMouseMove(float x, float y) {
             }
 
             if (m_toastHoverBtn != -1) {
-                 ::SetCursor(::LoadCursor(NULL, IDC_HAND));
+                 g_currentCursor = ::LoadCursor(NULL, IDC_HAND);
             }
 
             return SettingsAction::RepaintStatic; 
@@ -3217,7 +3217,7 @@ SettingsAction SettingsOverlay::OnMouseMove(float x, float y) {
         D2D1_RECT_F dropRect = D2D1::RectF(controlX, dropY, controlX + controlW, dropY + dropH);
         
         if (x >= dropRect.left && x <= dropRect.right && y >= dropRect.top && y <= dropRect.bottom) {
-             ::SetCursor(::LoadCursor(NULL, IDC_HAND));
+             g_currentCursor = ::LoadCursor(NULL, IDC_HAND);
              int idx = (int)((y - dropRect.top) / itemH);
              // Scroll support? For now assume simple clamp
              if (idx >= 0 && idx < count) { // TODO: Add scroll offset logic if > maxItems
@@ -3293,7 +3293,7 @@ SettingsAction SettingsOverlay::OnMouseMove(float x, float y) {
                     item.isHovered = inR1;
                     item.isHovered2 = inR2;
 
-                    if (inR1 || inR2) ::SetCursor(::LoadCursor(NULL, IDC_HAND));
+                    if (inR1 || inR2) g_currentCursor = ::LoadCursor(NULL, IDC_HAND);
 
                     // Sub-item Hit Testing
                     if (item.type == OptionType::AboutLinks) {
@@ -3302,7 +3302,7 @@ SettingsAction SettingsOverlay::OnMouseMove(float x, float y) {
                         else if (x >= r.issues.left && x <= r.issues.right && y >= r.issues.top && y <= r.issues.bottom) m_hoverLinkIndex = 1;
                         else if (x >= r.keys.left && x <= r.keys.right && y >= r.keys.top && y <= r.keys.bottom) m_hoverLinkIndex = 2;
 
-                        if (m_hoverLinkIndex != -1) ::SetCursor(::LoadCursor(NULL, IDC_HAND));
+                        if (m_hoverLinkIndex != -1) g_currentCursor = ::LoadCursor(NULL, IDC_HAND);
                     }
                     
                     if (!m_pHoverTooltipItem) break;

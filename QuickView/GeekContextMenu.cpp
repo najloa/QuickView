@@ -137,8 +137,14 @@ void GeekContextMenu::ShowMenu(HWND parent, int sx, int sy,
 
     // Note: RenderAndUI will handle UpdateLayeredWindow with initial alpha
     menu->m_hasAcrylic = menu->ApplyAcrylic();
-    MARGINS margins = { -1, -1, -1, -1 };
-    DwmExtendFrameIntoClientArea(menu->m_hwnd, &margins);
+    bool shadowsEnabled = (QuickView::UI::GeekGlass::GetGlobalThemeConfig().shadowOpacity > 0.005f);
+    if (shadowsEnabled) {
+        MARGINS margins = { -1, -1, -1, -1 };
+        DwmExtendFrameIntoClientArea(menu->m_hwnd, &margins);
+    } else {
+        DWORD policy = DWMNCRP_DISABLED;
+        DwmSetWindowAttribute(menu->m_hwnd, DWMWA_NCRENDERING_POLICY, &policy, sizeof(policy));
+    }
     menu->ApplyWindowRegion();
 
     menu->CreateResources();
@@ -193,8 +199,14 @@ void GeekContextMenu::ShowSubmenuPopup(HWND parent, int sx, int sy,
 
     // sub window setup
     sub->m_hasAcrylic = sub->ApplyAcrylic();
-    MARGINS margins = { -1, -1, -1, -1 };
-    DwmExtendFrameIntoClientArea(sub->m_hwnd, &margins);
+    bool shadowsEnabled = (QuickView::UI::GeekGlass::GetGlobalThemeConfig().shadowOpacity > 0.005f);
+    if (shadowsEnabled) {
+        MARGINS margins = { -1, -1, -1, -1 };
+        DwmExtendFrameIntoClientArea(sub->m_hwnd, &margins);
+    } else {
+        DWORD policy = DWMNCRP_DISABLED;
+        DwmSetWindowAttribute(sub->m_hwnd, DWMWA_NCRENDERING_POLICY, &policy, sizeof(policy));
+    }
     sub->ApplyWindowRegion();
 
     sub->CreateResources();

@@ -176,8 +176,9 @@ void GeekGlassEngine::CreateOrUpdateBrushes(ID2D1RenderTarget* pRT, const GeekGl
     // Recorded only if shadow is enabled to save GPU cycles on static panels.
     ComPtr<ID2D1DeviceContext> pContext;
     pRT->QueryInterface(IID_PPV_ARGS(&pContext));
-    if (pContext && config.shadowOpacity > 0.005f) {
-      ComPtr<ID2D1Device> pDevice;
+    if (pContext) {
+      if (config.shadowOpacity > 0.005f) {
+        ComPtr<ID2D1Device> pDevice;
       pContext->GetDevice(&pDevice);
       if (pDevice) {
         ComPtr<ID2D1DeviceContext> tempDC;
@@ -229,6 +230,10 @@ void GeekGlassEngine::CreateOrUpdateBrushes(ID2D1RenderTarget* pRT, const GeekGl
             }
           }
         }
+      }
+      } else {
+        m_shadowMask.Reset();
+        m_shadowClipGeometry.Reset();
       }
     }
 }

@@ -406,12 +406,12 @@ void HelpOverlay::OnMouseMove(float x, float y) {
     bool wasHover = m_hoverClose;
     if (x >= m_closeRect.left && x <= m_closeRect.right && y >= m_closeRect.top && y <= m_closeRect.bottom) {
         m_hoverClose = true;
-        ::SetCursor(::LoadCursor(NULL, IDC_HAND));
+        g_currentCursor = ::LoadCursor(NULL, IDC_HAND);
     } else {
         m_hoverClose = false;
         // If inside panel, Arrow. Else default (which might be arrow)
         if (x >= m_finalRect.left && x <= m_finalRect.right && y >= m_finalRect.top && y <= m_finalRect.bottom) {
-             ::SetCursor(::LoadCursor(NULL, IDC_ARROW));
+             g_currentCursor = ::LoadCursor(NULL, IDC_ARROW);
         }
     }
 }
