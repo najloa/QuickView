@@ -353,6 +353,9 @@ static float GetMinWindowWidth() {
     if (g_helpOverlay.IsVisible()) {
         defaultMinW = std::max(defaultMinW, 500.0f * g_uiScale + 50.0f * g_uiScale);
     }
+    if (g_gallery.IsVisible()) {
+        defaultMinW = std::max(defaultMinW, 660.0f * g_uiScale + 50.0f * g_uiScale);
+    }
     if (g_dialog.IsVisible) {
         defaultMinW = std::max(defaultMinW, 420.0f * g_uiScale + 24.0f * g_uiScale);
     }
@@ -377,6 +380,9 @@ static float GetMinWindowHeight() {
     }
     if (g_helpOverlay.IsVisible()) {
         defaultMinH = std::max(defaultMinH, 600.0f * g_uiScale + 50.0f * g_uiScale);
+    }
+    if (g_gallery.IsVisible()) {
+        defaultMinH = std::max(defaultMinH, 720.0f * g_uiScale + 50.0f * g_uiScale);
     }
     if (g_dialog.IsVisible) {
         float titleHeight = 35.0f;
@@ -2736,31 +2742,12 @@ static void ReloadComparePaneForDisplayChange(HWND hwnd, ComparePane pane) {
 }
 
 static void ShowGallery(HWND hwnd) {
-    SaveOverlayWindowState(hwnd);
-
-    const int MIN_GALLERY_WIDTH = 660;
-    const int MIN_GALLERY_HEIGHT = 720;
-    RECT rc;
-    GetClientRect(hwnd, &rc);
-    int curW = rc.right - rc.left;
-    int curH = rc.bottom - rc.top;
-    if (curW < MIN_GALLERY_WIDTH || curH < MIN_GALLERY_HEIGHT) {
-        int newW = std::max(curW, MIN_GALLERY_WIDTH);
-        int newH = std::max(curH, MIN_GALLERY_HEIGHT);
-        RECT winRect;
-        GetWindowRect(hwnd, &winRect);
-        int winW = winRect.right - winRect.left;
-        int winH = winRect.bottom - winRect.top;
-        int borderW = winW - curW;
-        int borderH = winH - curH;
-        int targetW = newW + borderW;
-        int targetH = newH + borderH;
-        int cx = (winRect.left + winRect.right) / 2;
-        int cy = (winRect.top + winRect.bottom) / 2;
-        SetWindowPos(hwnd, nullptr, cx - targetW / 2, cy - targetH / 2, targetW, targetH, SWP_NOZORDER);
-    }
+    if (!g_gallery.IsVisible()) SaveOverlayWindowState(hwnd);
 
     g_gallery.Open(g_navigator.Index());
+    if (g_gallery.IsVisible()) {
+        AdjustWindowForOverlay(hwnd, false);
+    }
     RequestRepaint(PaintLayer::All);
     SetTimer(hwnd, 998, 16, nullptr);
 }
@@ -5068,63 +5055,71 @@ void AdjustWindowForOverlay(HWND hwnd, bool isClosed) {
     int targetW = currentW;
     int targetH = currentH;
 
-    float imgW = GetLogicalImageSize().width;
-    float imgH = GetLogicalImageSize().height;
-    if (imgW <= 0 || imgH <= 0) return;
-
     RECT rcClient; GetClientRect(hwnd, &rcClient);
     float curClientW = (float)rcClient.right;
     float curClientH = (float)rcClient.bottom;
     int borderW = currentW - (int)curClientW;
     int borderH = currentH - (int)curClientH;
 
-    float curBaseFit = std::min(curClientW / imgW, curClientH / imgH);
-    if (imgW < 200.0f && imgH < 200.0f && !g_imageResource.isSvg) {
-        if (curBaseFit > 1.0f) curBaseFit = 1.0f;
+    float imgW = GetLogicalImageSize().width;
+    float imgH = GetLogicalImageSize().height;
+    bool hasImage = (imgW > 0 && imgH > 0);
+
+    // Pre-calculate zoom state only when an image is loaded
+    float absoluteZoom = 1.0f;
+    float curBaseFit = 1.0f;
+    if (hasImage) {
+        curBaseFit = std::min(curClientW / imgW, curClientH / imgH);
+        if (imgW < 200.0f && imgH < 200.0f && !g_imageResource.isSvg) {
+            if (curBaseFit > 1.0f) curBaseFit = 1.0f;
+        }
+        absoluteZoom = g_viewState.Zoom * curBaseFit;
     }
-    float absoluteZoom = g_viewState.Zoom * curBaseFit;
 
     if (!isClosed) {
+        // Opening overlay: expand window if too small for the overlay's minimum size
         if (currentW < minW || currentH < minH) {
             targetW = std::max(currentW, minW);
             targetH = std::max(currentH, minH);
         } else {
-            return;
+            return; // Already large enough
         }
     } else {
-        if (!g_imageResource) return;
+        // Closing overlay: shrink window back to fit image or original state
+        if (hasImage) {
+            int targetClientW = static_cast<int>(std::round(imgW * absoluteZoom));
+            int targetClientH = static_cast<int>(std::round(imgH * absoluteZoom));
 
-        int targetClientW = static_cast<int>(std::round(imgW * absoluteZoom));
-        int targetClientH = static_cast<int>(std::round(imgH * absoluteZoom));
+            targetW = targetClientW + borderW;
+            targetH = targetClientH + borderH;
 
-        targetW = targetClientW + borderW;
-        targetH = targetClientH + borderH;
+            const RECT bounds = GetWindowExpansionBounds(hwnd);
+            float maxSizePercent = g_config.WindowMaxSizePercent / 100.0f;
+            const int maxWinW = (int)((bounds.right - bounds.left) * maxSizePercent);
+            const int maxWinH = (int)((bounds.bottom - bounds.top) * maxSizePercent);
 
-        const RECT bounds = GetWindowExpansionBounds(hwnd);
-        float maxSizePercent = g_config.WindowMaxSizePercent / 100.0f;
-        const int maxWinW = (int)((bounds.right - bounds.left) * maxSizePercent);
-        const int maxWinH = (int)((bounds.bottom - bounds.top) * maxSizePercent);
+            if (targetW > maxWinW || targetH > maxWinH) {
+                float ratio = std::min((float)maxWinW / targetW, (float)maxWinH / targetH);
+                targetW = (int)(targetW * ratio);
+                targetH = (int)(targetH * ratio);
+            }
 
-        if (targetW > maxWinW || targetH > maxWinH) {
-            float ratio = std::min((float)maxWinW / targetW, (float)maxWinH / targetH);
-            targetW = (int)(targetW * ratio);
-            targetH = (int)(targetH * ratio);
+            if (targetW < minW) targetW = minW; 
+            if (targetH < minH) targetH = minH;
+        } else if (g_savedState.isValid) {
+            targetW = g_savedState.windowRect.right - g_savedState.windowRect.left;
+            targetH = g_savedState.windowRect.bottom - g_savedState.windowRect.top;
+        } else {
+            return; 
         }
-
-        if (targetW < minW) targetW = minW; 
-        if (targetH < minH) targetH = minH;
         
-        if (targetW == currentW && targetH == currentH) return;
+        if (targetW == currentW && targetH == currentH) {
+            g_savedState.isValid = false;
+            return;
+        }
     }
 
-    float finalClientW = (float)(targetW - borderW);
-    float finalClientH = (float)(targetH - borderH);
-
-    float newBaseFit = std::min(finalClientW / imgW, finalClientH / imgH);
-    if (imgW < 200.0f && imgH < 200.0f && !g_imageResource.isSvg) {
-        if (newBaseFit > 1.0f) newBaseFit = 1.0f;
-    }
-
+    // Center-anchored window positioning (unified for all cases)
     g_programmaticResize = true;
 
     int cx = rcWin.left + currentW / 2;
@@ -5145,14 +5140,26 @@ void AdjustWindowForOverlay(HWND hwnd, bool isClosed) {
     SetWindowPos(hwnd, nullptr, newX, newY, targetW, targetH,
                  SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
 
-    if (newBaseFit > 0.0001f) {
-        g_viewState.Zoom = absoluteZoom / newBaseFit;
+    // Recalculate zoom only when an image is loaded
+    if (hasImage) {
+        float finalClientW = (float)(targetW - borderW);
+        float finalClientH = (float)(targetH - borderH);
+
+        float newBaseFit = std::min(finalClientW / imgW, finalClientH / imgH);
+        if (imgW < 200.0f && imgH < 200.0f && !g_imageResource.isSvg) {
+            if (newBaseFit > 1.0f) newBaseFit = 1.0f;
+        }
+
+        if (newBaseFit > 0.0001f) {
+            g_viewState.Zoom = absoluteZoom / newBaseFit;
+        }
+
+        SyncDCompState(hwnd, finalClientW, finalClientH);
+        if (g_compEngine) g_compEngine->Commit();
     }
 
-    SyncDCompState(hwnd, finalClientW, finalClientH);
-    if (g_compEngine) g_compEngine->Commit();
-
     g_programmaticResize = false;
+    if (isClosed) g_savedState.isValid = false;
 }
 
 void AdjustWindowToImage(HWND hwnd) {
@@ -7725,9 +7732,8 @@ SKIP_EDGE_NAV:;
         
         // Check if Settings closed itself (e.g. Back button or Help transition)
         if (wasSettingsVisible && !g_settingsOverlay.IsVisible()) {
-             // [Fix] Only restore window state if we are NOT transitioning to Help Overlay
              if (!g_helpOverlay.IsVisible()) {
-                 RestoreOverlayWindowState(hwnd);
+                 AdjustWindowForOverlay(hwnd, true);
              }
              RequestRepaint(PaintLayer::Static);
              return 0;
@@ -8558,7 +8564,7 @@ SKIP_EDGE_NAV:;
         if (g_settingsOverlay.IsVisible()) {
             if (wParam == VK_ESCAPE) {
                 g_settingsOverlay.Toggle(); // Close
-                RestoreOverlayWindowState(hwnd);
+                AdjustWindowForOverlay(hwnd, true);
                 RequestRepaint(PaintLayer::Static);
                 return 0;
             }
@@ -8568,6 +8574,7 @@ SKIP_EDGE_NAV:;
         if (g_helpOverlay.IsVisible()) {
             if (wParam == VK_ESCAPE) {
                 g_helpOverlay.SetVisible(false);
+                AdjustWindowForOverlay(hwnd, true);
                 RequestRepaint(PaintLayer::Static);
                 return 0;
             }
@@ -8578,7 +8585,7 @@ SKIP_EDGE_NAV:;
             if (g_gallery.OnKeyDown(wParam)) {
                 if (!g_gallery.IsVisible()) {
                     SetCursor(LoadCursor(nullptr, IDC_ARROW)); // Fix sticky wait cursor
-                    RestoreOverlayWindowState(hwnd); // Restore window state on ESC close
+                    AdjustWindowForOverlay(hwnd, true); // Restore window state on close
                     // Closed with selection potentially
                     int idx = g_gallery.GetSelectedIndex();
                     if (idx >= 0 && idx < (int)g_navigator.Count()) {
@@ -8601,7 +8608,7 @@ SKIP_EDGE_NAV:;
         }
 
         // 閲嶅閿繃?(Bit 30: The previous key state)
-        // 娉ㄦ剰: Warp 娴嬭瘯閫昏緫闇€瑕佸鐞嗛暱鎸夛紝鎵€浠ヤ笉鍦ㄨ繖閲岃繃婊ら噸?
+        // 娉ㄦ剰: Warp 娴嬭瘯閫昏緫闇€瑕佸鐞囬暱鎸夛紝鎵€浠ヤ笉鍦ㄨ繖閲岃繃婊ら噸?
         
         bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
         bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
@@ -8675,11 +8682,13 @@ SKIP_EDGE_NAV:;
             if (IsCompareModeActive()) g_compare.contextPane = g_compare.activePane;
             SendMessage(hwnd, WM_COMMAND, IDM_EDIT, 0);
             break; // E: Edit
-        case VK_F1: // Help
-             if (g_settingsOverlay.IsVisible()) g_settingsOverlay.SetVisible(false);
+        case VK_F1: {
+             if (!g_helpOverlay.IsVisible()) SaveOverlayWindowState(hwnd);
              g_helpOverlay.Toggle();
+             AdjustWindowForOverlay(hwnd, !g_helpOverlay.IsVisible());
              RequestRepaint(PaintLayer::Static);
-             break;
+             return 0;
+        }
         case VK_F2:
             if (IsCompareModeActive()) g_compare.contextPane = g_compare.activePane;
             SendMessage(hwnd, WM_COMMAND, IDM_RENAME, 0);
@@ -9826,37 +9835,12 @@ SKIP_EDGE_NAV:;
         }
         case IDM_SETTINGS: {
             if (g_settingsOverlay.IsVisible()) {
-                // If already visible, just switch tab? Or toggle off?
-                // Standard behavior: bring to front / switch tab
                 g_settingsOverlay.OpenTab(5);
             } else {
                 SaveOverlayWindowState(hwnd);
                 g_settingsOverlay.Toggle(); // Open
-                
-                // 2. Elastic HUD: Expand window if it was too small
                 if (g_settingsOverlay.IsVisible()) {
-                     RECT rcClient;
-                     if (GetClientRect(hwnd, &rcClient)) {
-                         int w = rcClient.right - rcClient.left;
-                         int h = rcClient.bottom - rcClient.top;
-                         
-                         // Target HUD Size
-                         int minW = (int)(800.0f * g_uiScale);
-                         int minH = (int)(650.0f * g_uiScale);
-                         
-                         if (w < minW || h < minH) {
-                             int targetW = std::max(w, minW);
-                             int targetH = std::max(h, minH);
-    
-                             // Note: We simply resize. 
-                             // Zoom/Scale behavior is handled by main rendering logic (Fit Mode naturally scales image).
-                             
-                             SetWindowPos(hwnd, nullptr, 0, 0, 
-                                          targetW, 
-                                          targetH, 
-                                          SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-                         }
-                     }
+                    AdjustWindowForOverlay(hwnd, false);
                 }
             }
             RequestRepaint(PaintLayer::Static);
