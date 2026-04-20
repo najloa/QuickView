@@ -6285,6 +6285,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
             }
         }
         
+        if (g_viewState.IsDragging) {
+          SetCursor(LoadCursor(nullptr, IDC_SIZEALL));
+          return TRUE;
+        }
+
         // Default Client Cursor (Arrow) - Fixes stuck Wait cursor
         if (LOWORD(lParam) == HTCLIENT) {
             SetCursor(LoadCursor(nullptr, IDC_ARROW));
@@ -7474,6 +7479,7 @@ SKIP_EDGE_NAV:;
                 SetCapture(hwnd);
                 g_viewState.IsDragging = true;
                 g_viewState.IsInteracting = true;
+                SetCursor(LoadCursor(nullptr, IDC_SIZEALL));
             } else {
                 g_viewState.IsDragging = false;
             }
@@ -7888,6 +7894,7 @@ SKIP_EDGE_NAV:;
                 g_viewState.IsDragging = true;
                 g_viewState.IsInteracting = true;  // Start interaction mode
                 g_viewState.LastMousePos = pt;
+                SetCursor(LoadCursor(nullptr, IDC_SIZEALL));
             }
         }
         return 0;
