@@ -1663,8 +1663,23 @@ void SettingsOverlay::BuildMenu() {
     tabImage.items.push_back({ AppStrings::Settings_Header_Render, OptionType::Header });
 
     // Zoom Mode
-    tabImage.items.push_back({ AppStrings::Settings_Label_ZoomModeIn, OptionType::ComboBox, nullptr, nullptr, BindEnum(&g_config.ZoomModeIn), nullptr, 0, 0, {AppStrings::Settings_Option_ZoomAuto, AppStrings::Settings_Option_Linear, AppStrings::Settings_Option_Nearest, AppStrings::Settings_Option_HighQualityCubic} });
-    tabImage.items.push_back({ AppStrings::Settings_Label_ZoomModeOut, OptionType::ComboBox, nullptr, nullptr, BindEnum(&g_config.ZoomModeOut), nullptr, 0, 0, {AppStrings::Settings_Option_ZoomAuto, AppStrings::Settings_Option_Linear, AppStrings::Settings_Option_Nearest, AppStrings::Settings_Option_HighQualityCubic} });
+    SettingsItem itemZoomIn = { AppStrings::Settings_Label_ZoomModeIn, OptionType::ComboBox, nullptr, nullptr, BindEnum(&g_config.ZoomModeIn), nullptr, 0, 0, {AppStrings::Settings_Option_ZoomAuto, AppStrings::Settings_Option_Linear, AppStrings::Settings_Option_Nearest, AppStrings::Settings_Option_HighQualityCubic} };
+    itemZoomIn.onChange = []() {
+        SaveConfig();
+        extern HWND g_mainHwnd;
+        extern void RefreshImageDisplay(HWND hwnd);
+        RefreshImageDisplay(g_mainHwnd);
+    };
+    tabImage.items.push_back(itemZoomIn);
+
+    SettingsItem itemZoomOut = { AppStrings::Settings_Label_ZoomModeOut, OptionType::ComboBox, nullptr, nullptr, BindEnum(&g_config.ZoomModeOut), nullptr, 0, 0, {AppStrings::Settings_Option_ZoomAuto, AppStrings::Settings_Option_Linear, AppStrings::Settings_Option_Nearest, AppStrings::Settings_Option_HighQualityCubic} };
+    itemZoomOut.onChange = []() {
+        SaveConfig();
+        extern HWND g_mainHwnd;
+        extern void RefreshImageDisplay(HWND hwnd);
+        RefreshImageDisplay(g_mainHwnd);
+    };
+    tabImage.items.push_back(itemZoomOut);
 
     tabImage.items.push_back({ AppStrings::Settings_Label_AutoRotate, OptionType::Toggle, &g_config.AutoRotate });
     

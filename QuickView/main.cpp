@@ -5611,6 +5611,9 @@ static void SyncDCompState(HWND hwnd, float winW, float winH, bool animate) {
                 g_compEngine->SetImageInterpolationMode(interpMode);
             } else {
                 g_compEngine->UpdateTransformMatrix(vs, winW, winH, displayZoom, displayPanX, displayPanY, animationDurationMs);
+
+                DCOMPOSITION_BITMAP_INTERPOLATION_MODE interpMode = GetOptimalDCompInterpolationMode(displayZoom, vs.VisualSize.width, vs.VisualSize.height);
+                g_compEngine->SetImageInterpolationMode(interpMode);
             }
         }
     } else {
