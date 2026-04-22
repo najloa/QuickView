@@ -532,11 +532,15 @@ void Toolbar::Render(ID2D1RenderTarget *pRT) {
       float barW = barRight - barLeft;
       float fillW = barW * m_animProgress;
       float lineThickness = m_animProgressHover ? 4.0f * m_uiScale : 2.0f * m_uiScale;
+      float halfH = lineThickness * 0.5f;
+      float cornerRadius = halfH;
+      
+      D2D1_RECT_F trackRect = D2D1::RectF(barLeft, barY - halfH, barRight, barY + halfH);
       
       // Track (subtle)
       ComPtr<ID2D1SolidColorBrush> trackBr;
       pRT->CreateSolidColorBrush(D2D1::ColorF(0.3f, 0.3f, 0.4f, 0.3f), &trackBr);
-      pRT->DrawLine(D2D1::Point2F(barLeft, barY), D2D1::Point2F(barRight, barY), trackBr.Get(), lineThickness);
+      pRT->FillRoundedRectangle(D2D1::RoundedRect(trackRect, cornerRadius, cornerRadius), trackBr.Get());
       
       // Fill (accent blue)
       if (fillW > 0.5f) {
@@ -545,7 +549,9 @@ void Toolbar::Render(ID2D1RenderTarget *pRT) {
           : D2D1::ColorF(1.0f, 0.72f, 0.18f, 0.85f); // Orange when paused
         ComPtr<ID2D1SolidColorBrush> fillBr;
         pRT->CreateSolidColorBrush(accentColor, &fillBr);
-        pRT->DrawLine(D2D1::Point2F(barLeft, barY), D2D1::Point2F(barLeft + fillW, barY), fillBr.Get(), lineThickness);
+        
+        D2D1_RECT_F fillRect = D2D1::RectF(barLeft, barY - halfH, barLeft + fillW, barY + halfH);
+        pRT->FillRoundedRectangle(D2D1::RoundedRect(fillRect, cornerRadius, cornerRadius), fillBr.Get());
         
         // Playhead dot
         float dotRadius = m_animProgressHover ? 4.0f * m_uiScale : 3.0f * m_uiScale;

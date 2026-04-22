@@ -7129,8 +7129,8 @@ SKIP_EDGE_NAV:;
           // Toolbar Trigger
           RECT rc; GetClientRect(hwnd, &rc);
           float winH = (float)(rc.bottom - rc.top);
-          float zoneHeight = g_toolbar.IsVisible() ? 80.0f : 48.0f; // Expanded zone if visible
-          bool inZone = (pt.y > winH - zoneHeight);
+          float zoneHeight = g_toolbar.IsVisible() ? 80.0f * g_uiScale : 48.0f * g_uiScale; // Expanded zone if visible
+          bool inZone = (pt.y > winH - zoneHeight) || g_toolbar.HitTest((float)pt.x, (float)pt.y);
           
           static DWORD s_hideRequestTime = 0;
           
