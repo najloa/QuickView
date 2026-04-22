@@ -2125,16 +2125,17 @@ void SettingsOverlay::Render(ID2D1DeviceContext* pRT, float winW, float winH) {
 
     // Helper: Draw Main HUD only if visible
     if (m_visible) {
+        const float radius = 8.0f * s;
         D2D1_RECT_F hudRect = D2D1::RectF(hudX, hudY, hudX + hudW, hudY + hudH);
 
-        D2D1_ROUNDED_RECT hudRounded = D2D1::RoundedRect(hudRect, 8.0f, 8.0f);
+        D2D1_ROUNDED_RECT hudRounded = D2D1::RoundedRect(hudRect, radius, radius);
 
         // 3. Draw HUD Panel Background (Geek Glass or Fallback)
         if (m_bgCmdList) {
             m_geekGlass.InitializeResources(pRT);
             QuickView::UI::GeekGlass::GeekGlassConfig config = QuickView::UI::GeekGlass::GetGlobalThemeConfig();
             config.panelBounds = hudRect;
-            config.cornerRadius = 8.0f * m_uiScale;
+            config.cornerRadius = radius;
             
             // Override with local scale awareness for Settings UI if needed
             config.blurStandardDeviation *= m_uiScale; 
@@ -2214,11 +2215,9 @@ void SettingsOverlay::Render(ID2D1DeviceContext* pRT, float winW, float winH) {
         if (g_config.EnableGeekGlass) {
             auto config = QuickView::UI::GeekGlass::GetGlobalThemeConfig();
             config.panelBounds = hudRect;
-            config.cornerRadius = 8.0f;
+            config.cornerRadius = radius;
             m_geekGlass.DrawGeekGlassToppings(pRT, config);
         }
-
-        pRT->PopLayer();
 
         // --- Sidebar Post-Processing ---
         
@@ -2954,8 +2953,6 @@ void SettingsOverlay::Render(ID2D1DeviceContext* pRT, float winW, float winH) {
     } // End Active Tab Check
     pRT->PopAxisAlignedClip();
 
-    RenderTooltip(pRT);
-
     // Draw Scrollbar
     float visibleH = hudH - 60.0f * s;
     float overflow = m_settingsContentHeight - visibleH;
@@ -2972,7 +2969,9 @@ void SettingsOverlay::Render(ID2D1DeviceContext* pRT, float winW, float winH) {
         pRT->FillRoundedRectangle(D2D1::RoundedRect(thumbRect, 2.0f * s, 2.0f * s), scrollBrush.Get());
     }
 
-    } // End if (m_visible)
+    pRT->PopLayer();
+    RenderTooltip(pRT);
+} // End if (m_visible)
 
     // Draw Update Toast on Top (Always check)
     if (m_showUpdateToast) {

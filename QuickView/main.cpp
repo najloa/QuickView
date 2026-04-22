@@ -3661,7 +3661,8 @@ void DrawDialog(ID2D1DeviceContext* context, const RECT& clientRect) {
         QuickView::UI::GeekGlass::GeekGlassConfig config;
         config.panelBounds = layout.Box;
         config.cornerRadius = 10.0f * g_uiScale;
-        config.blurStandardDeviation = 24.0f * g_uiScale; 
+        config.shadowOpacity = g_config.GlassShadowOpacity;
+        config.blurStandardDeviation = g_config.GlassBlurSigma * g_uiScale;
         config.opacity = g_config.GlassModalsOpacity / 100.0f;
         config.tintProfile = g_config.GlassTintProfile;
         config.customTintColor = D2D1::ColorF(g_config.GlassCustomTintR, g_config.GlassCustomTintG, g_config.GlassCustomTintB, g_config.GlassTintAlpha);
@@ -3802,9 +3803,15 @@ void DrawDialog(ID2D1DeviceContext* context, const RECT& clientRect) {
             context->FillRoundedRectangle(D2D1::RoundedRect(btnRect, 4.0f, 4.0f), pBorderBrush.Get());
         } else {
              ComPtr<ID2D1SolidColorBrush> pBtnBgBrush;
-             D2D1_COLOR_F btnBgClr = isLight ? D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.1f) : D2D1::ColorF(0.25f, 0.25f, 0.25f, 1.0f);
+             D2D1_COLOR_F btnBgClr = isLight ? D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.1f) : D2D1::ColorF(0.3f, 0.3f, 0.3f, 1.0f);
              context->CreateSolidColorBrush(btnBgClr, &pBtnBgBrush);
              context->FillRoundedRectangle(D2D1::RoundedRect(btnRect, 4.0f, 4.0f), pBtnBgBrush.Get());
+             
+             // Subtle border for better visibility
+             ComPtr<ID2D1SolidColorBrush> pBtnBorderBrush;
+             D2D1_COLOR_F btnBordClr = isLight ? D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.25f) : D2D1::ColorF(0.45f, 0.45f, 0.45f, 1.0f);
+             context->CreateSolidColorBrush(btnBordClr, &pBtnBorderBrush);
+             context->DrawRoundedRectangle(D2D1::RoundedRect(btnRect, 4.0f, 4.0f), pBtnBorderBrush.Get(), 1.0f);
         }
         
         std::wstring& text = g_dialog.Buttons[i].Text;
@@ -3908,11 +3915,11 @@ void CreateDialogInput(HWND parent) {
     ClientToScreen(parent, &ptTL);
     ClientToScreen(parent, &ptBR);
     
-    // Adjust logic to match D2D padding (Left +8, Top +6 from box edge)
-    int x = ptTL.x + 8;
-    int y = ptTL.y + 6;
-    int w = (ptBR.x - ptTL.x) - 16;
-    int h = (ptBR.y - ptTL.y) - 12;
+    // Adjust logic to match D2D padding (Left +8, Top +2 from box edge)
+    int x = ptTL.x + (int)(8 * g_uiScale);
+    int y = ptTL.y + (int)(2 * g_uiScale);
+    int w = (ptBR.x - ptTL.x) - (int)(16 * g_uiScale);
+    int h = (ptBR.y - ptTL.y) - (int)(4 * g_uiScale);
 
     // Create Host Popup (TopMost to ensure it floats over DComp)
     g_dialog.hInputHost = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, L"QuickViewInputHost", L"", 
@@ -3927,12 +3934,16 @@ void CreateDialogInput(HWND parent) {
             g_dialog.hInputHost, nullptr, GetModuleHandle(nullptr), nullptr);
             
         if (g_dialog.hEdit) {
-            HFONT hFont = CreateFontW(22, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, 
-                OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
-            SendMessage(g_dialog.hEdit, WM_SETFONT, (WPARAM)hFont, TRUE);
-            g_dialog.oldEditProc = (WNDPROC)SetWindowLongPtr(g_dialog.hEdit, GWLP_WNDPROC, (LONG_PTR)EditSubclassProc);
-            SetFocus(g_dialog.hEdit);
-            SendMessage(g_dialog.hEdit, EM_SETSEL, 0, -1);
+          int fontHeight = (int)(22 * g_uiScale);
+          HFONT hFont = CreateFontW(
+              fontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+              DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+          SendMessage(g_dialog.hEdit, WM_SETFONT, (WPARAM)hFont, TRUE);
+          g_dialog.oldEditProc = (WNDPROC)SetWindowLongPtr(
+              g_dialog.hEdit, GWLP_WNDPROC, (LONG_PTR)EditSubclassProc);
+          SetFocus(g_dialog.hEdit);
+          SendMessage(g_dialog.hEdit, EM_SETSEL, 0, -1);
         }
     }
 }

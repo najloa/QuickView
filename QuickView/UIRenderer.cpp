@@ -848,14 +848,15 @@ void UIRenderer::DrawOSD(ID2D1DeviceContext* dc, HWND hwnd) {
                 config.blurStandardDeviation = g_config.GlassBlurSigma * s;
                 config.shadowOpacity = g_config.GlassShadowOpacity;
                 float concentration = (g_config.GlassOsdOpacity / 100.0f);
-                config.opacity = m_osdOpacity;
-                if (g_config.EnableGeekGlass) {
-                    // Balancing: As concentration increases, reduce refraction opacity to let booster show through
-                    // 100% OSD Density -> 0.3 Glass Opacity (Subtle texture) + 1.0 Booster (Solid color)
-                    config.opacity *= (0.7f - 0.4f * concentration);
-                }
+                float balancingScale = g_config.EnableGeekGlass ? (0.7f - 0.4f * concentration) : 1.0f;
+                config.opacity = m_osdOpacity * balancingScale;
                 
                 if (g_config.EnableGeekGlass) {
+                    // Compensate shadow intensity to remain invariant to concentration balancing
+                    // but maintain consistency with the Panel Density scaling used in other windows.
+                    float density = g_config.GlassOsdOpacity / 100.0f;
+                    if (balancingScale > 0.01f) config.shadowOpacity = (g_config.GlassShadowOpacity * density) / balancingScale;
+
                     // Material Booster Layer (Theme-Aware and Full Range)
                     ComPtr<ID2D1SolidColorBrush> boosterBrush;
                     bool isLight = (config.theme == QuickView::UI::GeekGlass::ThemeMode::Light);
@@ -868,6 +869,7 @@ void UIRenderer::DrawOSD(ID2D1DeviceContext* dc, HWND hwnd) {
                     config.pBackgroundCommandList = m_bgCommandList.Get();
                     config.backgroundTransform = m_compEngine ? m_compEngine->GetScreenTransform() : D2D1::Matrix3x2F::Identity();
                     geekGlass.DrawGeekGlassPanel(dc, config);
+                    geekGlass.DrawGeekGlassToppings(dc, config);
                     glassDrawn = true;
                 }
             }
@@ -940,13 +942,15 @@ void UIRenderer::DrawOSD(ID2D1DeviceContext* dc, HWND hwnd) {
         config.blurStandardDeviation = g_config.GlassBlurSigma * s;
         config.shadowOpacity = g_config.GlassShadowOpacity;
         float concentration = (g_config.GlassOsdOpacity / 100.0f);
-        config.opacity = m_osdOpacity;
-        if (g_config.EnableGeekGlass) {
-            // Balancing logic for main OSD path
-            config.opacity *= (0.7f - 0.4f * concentration);
-        }
+        float balancingScale = g_config.EnableGeekGlass ? (0.7f - 0.4f * concentration) : 1.0f;
+        config.opacity = m_osdOpacity * balancingScale;
 
         if (g_config.EnableGeekGlass) {
+            // Compensate shadow intensity to remain invariant to concentration balancing
+            // but maintain consistency with the Panel Density scaling used in other windows.
+            float density = g_config.GlassOsdOpacity / 100.0f;
+            if (balancingScale > 0.01f) config.shadowOpacity = (g_config.GlassShadowOpacity * density) / balancingScale;
+
             // Material Booster Layer (Theme-Aware and Full Range)
             ComPtr<ID2D1SolidColorBrush> boosterBrush;
             bool isLight = (config.theme == QuickView::UI::GeekGlass::ThemeMode::Light);
@@ -959,6 +963,7 @@ void UIRenderer::DrawOSD(ID2D1DeviceContext* dc, HWND hwnd) {
             config.pBackgroundCommandList = m_bgCommandList.Get();
             config.backgroundTransform = m_compEngine ? m_compEngine->GetScreenTransform() : D2D1::Matrix3x2F::Identity();
             geekGlass.DrawGeekGlassPanel(dc, config);
+            geekGlass.DrawGeekGlassToppings(dc, config);
             glassDrawnMain = true;
         }
     }
@@ -3142,6 +3147,7 @@ void UIRenderer::DrawNavIndicators(ID2D1DeviceContext* dc) {
             config.pBackgroundCommandList = m_bgCommandList.Get();
             config.backgroundTransform = m_compEngine ? m_compEngine->GetScreenTransform() : D2D1::Matrix3x2F::Identity();
             geekGlass.DrawGeekGlassPanel(dc, config);
+            geekGlass.DrawGeekGlassToppings(dc, config);
         } else {
             dc->FillEllipse(ellipse, brushCircle.Get());
         }
