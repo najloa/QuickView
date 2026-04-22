@@ -197,6 +197,7 @@ namespace AppStrings {
     extern const wchar_t* Settings_Label_SortDescending;
     extern const wchar_t* Settings_Label_ConfirmDel;
     extern const wchar_t* Settings_Label_Portable;
+    extern const wchar_t* Settings_Tooltip_Portable;
     extern const wchar_t* Settings_Label_SpanDisplays;
     extern const wchar_t* Settings_Label_UIScale;
     

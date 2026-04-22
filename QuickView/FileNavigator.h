@@ -8,6 +8,7 @@
 #include <Shlwapi.h>   // for StrCmpLogicalW
 #include "EditState.h" // for g_runtime
 #include "exif.h"      // for easyexif
+#include "SupportedExtensions.h" // Unified supported extensions
 
 #pragma comment(lib, "Shlwapi.lib")
 
@@ -38,20 +39,7 @@ public:
         if (dir.empty()) return;
 
         // Supported extensions (comprehensive list including RAW formats)
-        // Supported extensions (comprehensive list including RAW formats)
-        const std::vector<std::wstring> extensions = {
-            // Standard
-            L".jpg", L".jpeg", L".jpe", L".jfif", L".png", L".bmp", L".dib", L".gif", 
-            L".tif", L".tiff", L".ico", 
-            // Web / Modern
-            L".webp", L".avif", L".avifs", L".heic", L".heif", L".svg", L".svgz", L".jxl", L".apng",
-            // Professional / HDR / Legacy
-            L".exr", L".hdr", L".pic", L".psd", L".psb", L".tga", L".pcx", L".qoi", 
-            L".wbmp", L".pam", L".pbm", L".pgm", L".ppm", L".wdp", L".hdp", L".jxr", L".hif",
-            // RAW Formats (LibRaw supported)
-            L".arw", L".cr2", L".cr3", L".dng", L".nef", L".orf", L".raf", L".rw2", L".srw", L".x3f",
-            L".mrw", L".mos", L".kdc", L".dcr", L".sr2", L".pef", L".erf", L".3fr", L".mef", L".nrw"
-        };
+        // using QuickView::SUPPORTED_EXTENSIONS from SupportedExtensions.h
 
         try {
             m_sizes.clear();
@@ -61,7 +49,7 @@ public:
                     std::wstring ext = entry.path().extension().wstring();
                     std::transform(ext.begin(), ext.end(), ext.begin(), [](wchar_t c){ return std::towlower(c); });
                     
-                    for (const auto& supp : extensions) {
+                    for (const auto& supp : QuickView::SUPPORTED_EXTENSIONS) {
                         if (ext == supp) {
                             m_files.push_back(entry.path().wstring());
                             // Cache file size for Scout Lane decision

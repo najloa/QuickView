@@ -22,6 +22,7 @@
 #pragma comment(lib, "windowscodecs.lib")
 #include <dwmapi.h> // Required for DwmSetWindowAttribute
 #include "Toolbar.h" // [Fix] Required for g_toolbar extern
+#include "SupportedExtensions.h" // Unified extensions
 
 // Global Accessor from main.cpp
 extern ImageEngine* g_pImageEngine;
@@ -353,22 +354,8 @@ bool SettingsOverlay::RegisterAssociations() {
     SafeRegSetString(HKEY_CURRENT_USER, L"Software\\Classes\\QuickView.Image", L"FriendlyTypeName", L"QuickView Image Viewer");
     
     // 4. Register specific ProgIDs and OpenWith
-    const wchar_t* exts[] = {
-        // Standard
-        L".jpg", L".jpeg", L".jpe", L".jfif", L".png", L".bmp", L".dib", L".gif", 
-        L".tif", L".tiff", L".ico", 
-        // Web / Modern
-        L".webp", L".avif", L".avifs", L".heic", L".heif", L".svg", L".svgz", L".jxl", L".apng",
-        // Professional / HDR / Legacy
-        L".exr", L".hdr", L".pic", L".psd", L".psb", L".tga", L".pcx", L".qoi", 
-        L".wbmp", L".pam", L".pbm", L".pgm", L".ppm", L".wdp", L".hdp", L".jxr", L".hif",
-        // RAW Formats (LibRaw supported)
-        L".arw", L".cr2", L".cr3", L".crw", L".dng", L".nef", L".orf", L".raf", L".rw2", L".srw", L".x3f",
-        L".mrw", L".mos", L".kdc", L".dcr", L".sr2", L".pef", L".erf", L".3fr", L".mef", L".nrw"
-    };
-
-    for (const auto& ext : exts) {
-        std::wstring extStr = ext;
+    for (const auto& ext : QuickView::SUPPORTED_EXTENSIONS) {
+        std::wstring extStr(ext);
         std::wstring baseExt = (extStr.size() > 1) ? extStr.substr(1) : extStr;
         
         // Generate ProgID: QuickView.EXT (e.g. QuickView.jpg)
@@ -408,11 +395,12 @@ bool SettingsOverlay::RegisterAssociations() {
         L"Software\\Classes\\Applications\\QuickView.exe\\SupportedTypes",
         0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         
-        for (const auto& ext : exts) {
+        for (const auto& ext : QuickView::SUPPORTED_EXTENSIONS) {
+            std::wstring extStr(ext);
             // [Small AV Optimization] Only write if not already there
             DWORD type;
-            if (RegQueryValueExW(hKey, ext, NULL, &type, NULL, NULL) != ERROR_SUCCESS) {
-                RegSetValueExW(hKey, ext, 0, REG_SZ, (const BYTE*)L"", sizeof(wchar_t));
+            if (RegQueryValueExW(hKey, extStr.c_str(), NULL, &type, NULL, NULL) != ERROR_SUCCESS) {
+                RegSetValueExW(hKey, extStr.c_str(), 0, REG_SZ, (const BYTE*)L"", sizeof(wchar_t));
             }
         }
         RegCloseKey(hKey);
@@ -421,7 +409,24 @@ bool SettingsOverlay::RegisterAssociations() {
     std::wstring applicationsCmd = L"\"" + exePathStr + L"\" \"%1\"";
     SafeRegSetString(HKEY_CURRENT_USER, L"Software\\Classes\\Applications\\QuickView.exe\\shell\\open\\command", NULL, applicationsCmd);
     
-    // 6. Refresh Shell
+    // 6. Register Capabilities
+    SafeRegSetString(HKEY_CURRENT_USER, L"Software\\QuickView\\Capabilities", L"ApplicationDescription", L"QuickView Image Viewer");
+    SafeRegSetString(HKEY_CURRENT_USER, L"Software\\QuickView\\Capabilities", L"ApplicationName", L"QuickView");
+    
+    std::wstring capKey = L"Software\\QuickView\\Capabilities\\FileAssociations";
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, capKey.c_str(), 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        for (const auto& ext : QuickView::SUPPORTED_EXTENSIONS) {
+            std::wstring extStr(ext);
+            std::wstring progId = L"QuickView" + extStr;
+            RegSetValueExW(hKey, extStr.c_str(), 0, REG_SZ, (const BYTE*)progId.c_str(), (DWORD)(progId.size() + 1) * sizeof(wchar_t));
+        }
+        RegCloseKey(hKey);
+    }
+    
+    // 7. Register to RegisteredApplications
+    SafeRegSetString(HKEY_CURRENT_USER, L"Software\\RegisteredApplications", L"QuickView", L"Software\\QuickView\\Capabilities");
+
+    // 8. Refresh Shell
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 
     // [The Golden Path] Persistence Update
@@ -449,18 +454,8 @@ void SettingsOverlay::UnregisterAssociations() {
     SaveConfig();
     
     // Delete per-extension ProgIDs and OpenWithProgids entries
-    const wchar_t* exts[] = {
-        L".jpg", L".jpeg", L".jpe", L".jfif", L".png", L".bmp", L".dib", L".gif", 
-        L".tif", L".tiff", L".ico", 
-        L".webp", L".avif", L".avifs", L".heic", L".heif", L".svg", L".svgz", L".jxl", L".apng",
-        L".exr", L".hdr", L".pic", L".psd", L".psb", L".tga", L".pcx", L".qoi", 
-        L".wbmp", L".pam", L".pbm", L".pgm", L".ppm", L".wdp", L".hdp", L".jxr", L".hif",
-        L".arw", L".cr2", L".cr3", L".crw", L".dng", L".nef", L".orf", L".raf", L".rw2", L".srw", L".x3f",
-        L".mrw", L".mos", L".kdc", L".dcr", L".sr2", L".pef", L".erf", L".3fr", L".mef", L".nrw"
-    };
-    
-    for (const auto& ext : exts) {
-        std::wstring extStr = ext;
+    for (const auto& ext : QuickView::SUPPORTED_EXTENSIONS) {
+        std::wstring extStr(ext);
         std::wstring progId = L"QuickView" + extStr;
         
         // Delete ProgID key (e.g. QuickView.jpg)
@@ -476,6 +471,16 @@ void SettingsOverlay::UnregisterAssociations() {
         }
     }
     
+    // Delete Capabilities
+    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\QuickView\\Capabilities");
+    
+    // Delete from RegisteredApplications
+    HKEY hRegApp;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\RegisteredApplications", 0, KEY_WRITE, &hRegApp) == ERROR_SUCCESS) {
+        RegDeleteValueW(hRegApp, L"QuickView");
+        RegCloseKey(hRegApp);
+    }
+
     // Refresh Shell
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 }
@@ -1047,6 +1052,7 @@ void SettingsOverlay::BuildMenu() {
     
     // Portable Mode with file move logic
     SettingsItem itemPortable = { AppStrings::Settings_Label_Portable, OptionType::Toggle, &g_config.PortableMode };
+    itemPortable.tooltipText = AppStrings::Settings_Tooltip_Portable;
     itemPortable.onChange = [this]() {
         wchar_t exePath[MAX_PATH]; GetModuleFileNameW(nullptr, exePath, MAX_PATH);
         std::wstring exeDir = exePath;

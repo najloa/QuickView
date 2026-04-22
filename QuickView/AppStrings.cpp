@@ -53,6 +53,7 @@ const wchar_t *Settings_Label_SortOrder = nullptr;
 const wchar_t *Settings_Label_SortDescending = nullptr;
 const wchar_t *Settings_Label_ConfirmDel = nullptr;
 const wchar_t *Settings_Label_Portable = nullptr;
+const wchar_t *Settings_Tooltip_Portable = nullptr;
 const wchar_t *Settings_Label_SpanDisplays = nullptr;
 const wchar_t *Settings_Label_UIScale = nullptr;
 
@@ -507,7 +508,12 @@ struct EN {
   static constexpr const wchar_t *Settings_Label_SortOrder = L"Sort Order";
   static constexpr const wchar_t *Settings_Label_SortDescending = L"Descending";
   static constexpr const wchar_t *Settings_Label_ConfirmDel = L"Confirm Delete";
-  static constexpr const wchar_t *Settings_Label_Portable = L"Portable Mode";
+  static constexpr const wchar_t *Settings_Label_Portable = L"Portable Mode / Cleanup";
+  static constexpr const wchar_t *Settings_Tooltip_Portable =
+      L"Portable Mode / Registry Cleanup:\nWhen enabled, QuickView runs in "
+      L"portable mode. It will automatically clean up existing registry "
+      L"associations, disable automatic registry modification, and store "
+      L"configuration files in the application directory instead of AppData.";
   static constexpr const wchar_t *Settings_Label_SpanDisplays =
       L"Span Displays";
   static constexpr const wchar_t *Settings_Label_UIScale = L"UI Scale";
@@ -1072,7 +1078,11 @@ struct CN {
   static constexpr const wchar_t *Settings_Label_SortOrder = L"列表排序方式";
   static constexpr const wchar_t *Settings_Label_SortDescending = L"降序";
   static constexpr const wchar_t *Settings_Label_ConfirmDel = L"删除确认";
-  static constexpr const wchar_t *Settings_Label_Portable = L"便携模式";
+  static constexpr const wchar_t *Settings_Label_Portable = L"便携模式 / 清理";
+  static constexpr const wchar_t *Settings_Tooltip_Portable =
+      L"便携模式与注册表清理：\n开启后，QuickView "
+      L"将以便携方式运行。程序将自动清理已有的注册表关联，并禁用自动注册表修改功"
+      L"能。同时，配置文件将存放在程序所在目录而非 AppData 目录。";
   static constexpr const wchar_t *Settings_Label_SpanDisplays =
       L"跨屏模式 (电视墙)";
   static constexpr const wchar_t *Settings_Label_UIScale = L"界面缩放";
@@ -1588,7 +1598,11 @@ struct TW {
   static constexpr const wchar_t *Settings_Label_SortOrder = L"排序方式";
   static constexpr const wchar_t *Settings_Label_SortDescending = L"降冪";
   static constexpr const wchar_t *Settings_Label_ConfirmDel = L"刪除確認";
-  static constexpr const wchar_t *Settings_Label_Portable = L"可攜式模式";
+  static constexpr const wchar_t *Settings_Label_Portable = L"可攜式模式 / 清理";
+  static constexpr const wchar_t *Settings_Tooltip_Portable =
+      L"可攜式模式與登錄檔清理：\n開啟後，QuickView "
+      L"將以可攜式方式執行。程式将自動清理已有的登錄檔關聯，並禁用自動登錄檔修改功"
+      L"能。同時，設定檔將存放在程式所在目錄而非 AppData 目錄。";
   static constexpr const wchar_t *Settings_Label_SpanDisplays =
       L"跨屏模式 (電視牆)";
   static constexpr const wchar_t *Settings_Label_UIScale = L"介面縮放";
@@ -2096,7 +2110,12 @@ struct JA {
   static constexpr const wchar_t *Settings_Label_SortOrder = L"並べ替え順序";
   static constexpr const wchar_t *Settings_Label_SortDescending = L"降順";
   static constexpr const wchar_t *Settings_Label_ConfirmDel = L"削除確認";
-  static constexpr const wchar_t *Settings_Label_Portable = L"ポータブルモード";
+  static constexpr const wchar_t *Settings_Label_Portable = L"ポータブルモード / クリーンアップ";
+  static constexpr const wchar_t *Settings_Tooltip_Portable =
+      L"ポータブルモードとレジストリのクリーンアップ：\n有効にすると、QuickView "
+      L"はポータブルモードで動作します。既存のレジストリ関連付けを自動的にクリー"
+      L"ンアップし、レジストリの自動変更を無効にします。また、設定ファイルは AppData "
+      L"ではなくアプリケーションディレクトリに保存されます。";
   static constexpr const wchar_t *Settings_Label_SpanDisplays =
       L"Span Displays (Video Wall)";
   static constexpr const wchar_t *Settings_Label_UIScale = L"UI スケール";
@@ -2638,7 +2657,12 @@ struct RU {
   static constexpr const wchar_t *Settings_Label_SortOrder = L"Порядок сортировки";
   static constexpr const wchar_t *Settings_Label_SortDescending = L"По убыванию";
   static constexpr const wchar_t *Settings_Label_ConfirmDel = L"Подтверждение удаления";
-  static constexpr const wchar_t *Settings_Label_Portable = L"Портативный режим";
+  static constexpr const wchar_t *Settings_Label_Portable = L"Портативный режим / Очистка";
+  static constexpr const wchar_t *Settings_Tooltip_Portable =
+      L"Портативный режим и очистка реестра:\nПри включении QuickView работает в "
+      L"портативном режиме. Он автоматически очистит существующие ассоциации в "
+      L"реестре, отключит автоматическое изменение реестра и будет хранить файлы "
+      L"конфигурации в каталоге приложения вместо AppData.";
   static constexpr const wchar_t *Settings_Label_SpanDisplays =
       L"Распределять по мониторам (видеостена)";
   static constexpr const wchar_t *Settings_Label_UIScale = L"Масштаб интерфейса";
@@ -3206,7 +3230,12 @@ struct DE {
   static constexpr const wchar_t *Settings_Label_SortDescending = L"Absteigend";
   static constexpr const wchar_t *Settings_Label_ConfirmDel =
       L"Löschen bestätigen";
-  static constexpr const wchar_t *Settings_Label_Portable = L"Portabler Modus";
+  static constexpr const wchar_t *Settings_Label_Portable = L"Portabler Modus / Bereinigung";
+  static constexpr const wchar_t *Settings_Tooltip_Portable =
+      L"Portabler Modus und Registry-Bereinigung:\nWenn aktiviert, wird QuickView im "
+      L"portablen Modus ausgeführt. Es bereinigt automatisch vorhandene "
+      L"Registry-Verknüpfungen, deaktiviert automatische Registry-Änderungen und "
+      L"speichert Konfigurationsdateien im Anwendungsverzeichnis anstatt in AppData.";
   static constexpr const wchar_t *Settings_Label_SpanDisplays =
       L"Span Displays (Video Wall)";
   static constexpr const wchar_t *Settings_Label_UIScale = L"UI-Skalierung";
@@ -3761,7 +3790,13 @@ struct ES {
   static constexpr const wchar_t *Settings_Label_SortDescending = L"Descendente";
   static constexpr const wchar_t *Settings_Label_ConfirmDel =
       L"Confirmar eliminación";
-  static constexpr const wchar_t *Settings_Label_Portable = L"Modo portátil";
+  static constexpr const wchar_t *Settings_Label_Portable = L"Modo portátil / Limpieza";
+  static constexpr const wchar_t *Settings_Tooltip_Portable =
+      L"Modo portátil y limpieza del registro:\nCuando está habilitado, QuickView se "
+      L"ejecuta en modo portátil. Limpiará automáticamente las asociaciones de "
+      L"registro existentes, deshabilitará la modificación automática del registro y "
+      L"almacenará los archivos de configuración en el directorio de la aplicación en "
+      L"lugar de AppData.";
   static constexpr const wchar_t *Settings_Label_SpanDisplays =
       L"Span Displays (Video Wall)";
   static constexpr const wchar_t *Settings_Label_UIScale =
@@ -4321,6 +4356,7 @@ template <typename T> void ApplyT() {
   Settings_Label_SortDescending = T::Settings_Label_SortDescending;
   Settings_Label_ConfirmDel = T::Settings_Label_ConfirmDel;
   Settings_Label_Portable = T::Settings_Label_Portable;
+  Settings_Tooltip_Portable = T::Settings_Tooltip_Portable;
   Settings_Label_SpanDisplays = T::Settings_Label_SpanDisplays;
   Settings_Label_UIScale = T::Settings_Label_UIScale;
 
