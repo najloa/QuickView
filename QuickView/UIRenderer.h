@@ -222,9 +222,7 @@ private:
     AdaptiveUiPalette BuildAdaptivePalette(float luminance, float* ioBlend) const;
     static D2D1_COLOR_F LerpColor(const D2D1_COLOR_F& a, const D2D1_COLOR_F& b, float t);
     
-    // [v10.5] Animation Scrubber & UI
-    void DrawAnimationScrubber(ID2D1DeviceContext* dc, HWND hwnd);
-    
+
 public:
     // ===== Text Measurement Helpers =====
     float MeasureTextWidth(const std::wstring& text, IDWriteTextFormat* format = nullptr) const;

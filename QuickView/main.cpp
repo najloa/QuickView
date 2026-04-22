@@ -11783,6 +11783,7 @@ void OnPaint(HWND hwnd) {
         if (hasAnim && animState.TotalFrames > 1) {
             float progress = (float)animState.CurrentFrameIndex / (float)(animState.TotalFrames - 1);
             g_toolbar.SetAnimProgress(progress);
+            g_toolbar.SetAnimFrameInfo(animState.CurrentFrameIndex, animState.TotalFrames);
         }
         {
             RECT rc; GetClientRect(hwnd, &rc);

@@ -88,6 +88,10 @@ public:
     void SetAnimationMode(bool enabled, bool playing = true, bool dirtyRect = false, bool supportsDirtyRect = true);
     bool IsAnimationMode() const { return m_animMode; }
     void SetAnimProgress(float progress) { m_animProgress = progress; }
+    void SetAnimFrameInfo(uint32_t currentFrame, uint32_t totalFrames) { 
+        m_currentFrame = currentFrame; 
+        m_totalFrames = totalFrames; 
+    }
     void SetDraggingProgress(bool dragging) { m_isDraggingProgress = dragging; }
     float GetAnimSpeedMultiplier() const { return m_animSpeedMult; }
     
@@ -124,6 +128,8 @@ private:
     bool m_animPlaying = true;
     bool m_animDirtyRect = false;
     float m_animProgress = 0.0f;
+    uint32_t m_currentFrame = 0;
+    uint32_t m_totalFrames = 0;
     float m_animSpeedMult = 1.0f;
     float m_minRequiredWidth = 0.0f;
     float m_compareZoomStepPercent = 0.5f;

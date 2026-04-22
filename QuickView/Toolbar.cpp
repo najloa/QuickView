@@ -315,8 +315,8 @@ void Toolbar::UpdateLayout(float winW, float winH) {
   bool speedInserted = false;
   
   if (m_animMode) {
-      // Expand upwards to capture pointer tip, contract downwards to avoid buttons (+4.0f)
-      m_animProgressRect = D2D1::RectF(m_bgRect.rect.left + 20.0f * m_uiScale, m_bgRect.rect.top - 15.0f * m_uiScale, m_bgRect.rect.right - 20.0f * m_uiScale, m_bgRect.rect.top + 2.0f * m_uiScale);
+      // Expand upwards to capture pointer tip and frame text, contract downwards to avoid buttons (+2.0f)
+      m_animProgressRect = D2D1::RectF(m_bgRect.rect.left + 20.0f * m_uiScale, m_bgRect.rect.top - 28.0f * m_uiScale, m_bgRect.rect.right - 20.0f * m_uiScale, m_bgRect.rect.top + 2.0f * m_uiScale);
   }
 
   for (auto &btn : m_buttons) {
@@ -553,6 +553,54 @@ void Toolbar::Render(ID2D1RenderTarget *pRT) {
         ComPtr<ID2D1SolidColorBrush> dotBr;
         pRT->CreateSolidColorBrush(D2D1::ColorF(m_animProgressHover ? 1.0f : 0.3f, 0.65f, 1.0f, 0.95f), &dotBr);
         pRT->FillEllipse(dot, dotBr.Get());
+      }
+      
+      // Frame Index Text (Show on hover)
+      if (m_totalFrames > 1 && m_animProgressHover) {
+        uint32_t displayFrame = m_currentFrame;
+        
+        // When paused, show the frame at the mouse cursor position
+        if (!m_animPlaying) {
+             displayFrame = (uint32_t)round(m_animSeekHoverProgress * (m_totalFrames - 1));
+             if (displayFrame >= m_totalFrames) displayFrame = m_totalFrames - 1;
+        }
+
+        wchar_t frameTxt[64];
+        swprintf_s(frameTxt, L"%u / %u", displayFrame + 1, m_totalFrames);
+        
+        // Draw text centered above the progress bar with a transparent background
+        if (m_textFormatUI && m_dwriteFactory) {
+            ComPtr<IDWriteTextLayout> textLayout;
+            if (SUCCEEDED(m_dwriteFactory->CreateTextLayout(frameTxt, (UINT32)wcslen(frameTxt), m_textFormatUI.Get(), 500.0f, 50.0f, &textLayout))) {
+                DWRITE_TEXT_METRICS metrics;
+                textLayout->GetMetrics(&metrics);
+                
+                float pillW = metrics.width + 16.0f * m_uiScale;
+                float pillH = 20.0f * m_uiScale;
+                float pillX = barLeft + (barW - pillW) * 0.5f;
+                float pillY = barY - pillH - 6.0f * m_uiScale;
+                
+                D2D1_RECT_F pillRect = D2D1::RectF(pillX, pillY, pillX + pillW, pillY + pillH);
+                
+                // Draw background pill
+                D2D1_COLOR_F tipBgBase = isLight 
+                    ? D2D1::ColorF(1.0f, 1.0f, 1.0f, g_config.GlassOsdOpacity / 100.0f)
+                    : D2D1::ColorF(0.15f, 0.15f, 0.15f, g_config.GlassOsdOpacity / 100.0f);
+                ComPtr<ID2D1SolidColorBrush> tipBg;
+                pRT->CreateSolidColorBrush(tipBgBase, &tipBg);
+                pRT->FillRoundedRectangle(D2D1::RoundedRect(pillRect, 4.0f * m_uiScale, 4.0f * m_uiScale), tipBg.Get());
+                
+                // Text color
+                D2D1_COLOR_F textColor = m_animPlaying
+                  ? D2D1::ColorF(0.25f, 0.56f, 1.0f, 0.9f) // Match active bar
+                  : D2D1::ColorF(1.0f, 0.72f, 0.18f, 0.9f); // Match paused bar
+                  
+                ComPtr<ID2D1SolidColorBrush> textBr;
+                pRT->CreateSolidColorBrush(textColor, &textBr);
+                
+                pRT->DrawText(frameTxt, (UINT32)wcslen(frameTxt), m_textFormatUI.Get(), pillRect, textBr.Get());
+            }
+        }
       }
     }
 
@@ -832,17 +880,21 @@ bool Toolbar::OnMouseMove(float x, float y) {
   }
   
   bool progHover = false;
+  float newSeekHover = m_animSeekHoverProgress;
   if (m_animMode && m_animProgressRect.right > m_animProgressRect.left) {
       if ((x >= m_animProgressRect.left && x <= m_animProgressRect.right && y >= m_animProgressRect.top && y <= m_animProgressRect.bottom) || m_isDraggingProgress) {
           progHover = true; // Still show hover highlight while dragging
-          m_animSeekHoverProgress = (x - m_animProgressRect.left) / (m_animProgressRect.right - m_animProgressRect.left);
-          m_animSeekHoverProgress = (std::max)(0.0f, (std::min)(1.0f, m_animSeekHoverProgress));
+          newSeekHover = (x - m_animProgressRect.left) / (m_animProgressRect.right - m_animProgressRect.left);
+          newSeekHover = (std::max)(0.0f, (std::min)(1.0f, newSeekHover));
       }
   }
-  if (progHover != m_animProgressHover) {
+  
+  if (progHover != m_animProgressHover || (progHover && !m_animPlaying && fabsf(newSeekHover - m_animSeekHoverProgress) > 0.0001f)) {
       changed = true;
-      m_animProgressHover = progHover;
   }
+  
+  m_animProgressHover = progHover;
+  m_animSeekHoverProgress = newSeekHover;
   
   return changed;
 }
