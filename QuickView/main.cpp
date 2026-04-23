@@ -1581,7 +1581,7 @@ static void SnapWindowToCompareImages(HWND hwnd) {
     if (!IsCompareModeActive() || !g_compare.left.valid || !g_imageResource) return;
 
     // [Fix] Respect Fullscreen, Maximized, and Lock states. Do not snap window if already in these modes.
-    if (!g_isFullScreen && !IsZoomed(hwnd) && !g_runtime.LockWindowSize) {
+    if (!g_isFullScreen && !IsZoomed(hwnd) && (!g_runtime.LockWindowSize || !g_config.KeepWindowSizeOnNav)) {
         int leftExif = GetEffectiveExifOrientation(g_compare.left.view.ExifOrientation, g_compare.left.editState);
         int rightExif = GetEffectiveExifOrientation(g_viewState.ExifOrientation, g_editState);
         D2D1_SIZE_F szLeft = GetOrientedSize(g_compare.left.resource, leftExif);
@@ -2091,7 +2091,7 @@ static bool RenderImageToDComp(HWND hwnd, ImageResource& res, bool isFastUpgrade
         return true;
     }
     
-    if (!isFastUpgrade && !IsZoomed(hwnd) && !g_runtime.LockWindowSize) {
+    if (!isFastUpgrade && !IsZoomed(hwnd) && (!g_runtime.LockWindowSize || !g_config.KeepWindowSizeOnNav)) {
         HMONITOR hMon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
         MONITORINFO mi = { sizeof(mi) };
         if (GetMonitorInfoW(hMon, &mi)) {
@@ -5055,7 +5055,6 @@ int GetCurrentZoomPercent() {
 
 void AdjustWindowForOverlay(HWND hwnd, bool isClosed) {
     if (g_isFullScreen || IsZoomed(hwnd)) return;
-    if (g_runtime.LockWindowSize) return;
 
     int minW = (int)GetMinWindowWidth();
     int minH = (int)GetMinWindowHeight();
@@ -5098,7 +5097,7 @@ void AdjustWindowForOverlay(HWND hwnd, bool isClosed) {
         }
     } else {
         // Closing overlay: shrink window back to fit image or original state
-        if (hasImage) {
+        if (hasImage && !g_runtime.LockWindowSize) {
             int targetClientW = static_cast<int>(std::round(imgW * absoluteZoom));
             int targetClientH = static_cast<int>(std::round(imgH * absoluteZoom));
 
@@ -5177,7 +5176,7 @@ void AdjustWindowForOverlay(HWND hwnd, bool isClosed) {
 void AdjustWindowToImage(HWND hwnd) {
     s_restoredWindowRect = { 0 }; // Clear restored rect so new image sets new initial size
     if (!g_imageResource) return;
-    if (g_runtime.LockWindowSize) return;  // Don't auto-resize when locked
+    if (g_runtime.LockWindowSize && g_config.KeepWindowSizeOnNav) return;  // Don't auto-resize when locked and requested to keep size
     if (g_settingsOverlay.IsVisible()) return; // Don't resize if Settings is open (prevents jitter)
     if (g_isFullScreen || IsZoomed(hwnd)) return; // [Fix] Don't resize if in Fullscreen or Maximized mode
 
