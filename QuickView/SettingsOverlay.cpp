@@ -1466,14 +1466,6 @@ void SettingsOverlay::BuildMenu() {
     };
     tabVisuals.items.push_back(itemRounded);
 
-    SettingsItem itemLockWindow = { AppStrings::Settings_Label_LockWindow, OptionType::Toggle, &g_config.LockWindowSize };
-    itemLockWindow.onChange = []() {
-        g_runtime.LockWindowSize = g_config.LockWindowSize;
-        g_toolbar.SetLockState(g_runtime.LockWindowSize);
-        SaveConfig();
-    };
-    tabVisuals.items.push_back(itemLockWindow);
-
     tabVisuals.items.push_back({ AppStrings::Settings_Label_AutoHideTitle, OptionType::Toggle, &g_config.AutoHideWindowControls });
     
     // Window Min Width Slider (200px to 800px)
@@ -1498,8 +1490,29 @@ void SettingsOverlay::BuildMenu() {
     tabVisuals.items.push_back({ AppStrings::Settings_Label_ShowBorderIndicator, OptionType::Toggle, &g_config.ShowBorderIndicator });
 
     tabVisuals.items.push_back({ AppStrings::Settings_Header_WindowLock, OptionType::Header });
+    SettingsItem itemLockWindow = { AppStrings::Settings_Label_LockWindow, OptionType::Toggle, &g_config.LockWindowSize };
+    itemLockWindow.tooltipText = AppStrings::Settings_Tooltip_LockWindow;
+    itemLockWindow.onChange = []() {
+        g_runtime.LockWindowSize = g_config.LockWindowSize;
+        g_toolbar.SetLockState(g_runtime.LockWindowSize);
+        if (!g_config.LockWindowSize) {
+            g_config.RememberLastWindowSize = false;
+        }
+        SaveConfig();
+    };
+    tabVisuals.items.push_back(itemLockWindow);
+
     tabVisuals.items.push_back({ AppStrings::Settings_Label_KeepWindowSizeOnNav, OptionType::Toggle, &g_config.KeepWindowSizeOnNav });
-    tabVisuals.items.push_back({ AppStrings::Settings_Label_RememberLastWindowSize, OptionType::Toggle, &g_config.RememberLastWindowSize });
+    SettingsItem itemRememberWindow = { AppStrings::Settings_Label_RememberLastWindowSize, OptionType::Toggle, &g_config.RememberLastWindowSize };
+    itemRememberWindow.onChange = []() {
+        if (g_config.RememberLastWindowSize) {
+            g_config.LockWindowSize = true;
+            g_runtime.LockWindowSize = true;
+            g_toolbar.SetLockState(true);
+        }
+        SaveConfig();
+    };
+    tabVisuals.items.push_back(itemRememberWindow);
     tabVisuals.items.push_back({ AppStrings::Settings_Label_UpscaleSmallImagesWhenLocked, OptionType::Toggle, &g_config.UpscaleSmallImagesWhenLocked });
 
     tabVisuals.items.push_back({ AppStrings::Settings_Header_Panel, OptionType::Header });

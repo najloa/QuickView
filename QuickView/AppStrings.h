@@ -228,6 +228,7 @@ namespace AppStrings {
     extern const wchar_t* Settings_Label_CrossFade;
     extern const wchar_t* Settings_Label_AlwaysOnTop;
     extern const wchar_t* Settings_Label_LockWindow;
+    extern const wchar_t* Settings_Tooltip_LockWindow;
     extern const wchar_t* Settings_Label_AutoHideTitle;
     extern const wchar_t* Settings_Label_RoundedCorners; // [v3.1.2]
     extern const wchar_t* Settings_Label_LockToolbar;

@@ -210,6 +210,7 @@ const wchar_t *Settings_Label_ShowGrid = nullptr;
 const wchar_t *Settings_Label_CrossFade = nullptr;
 const wchar_t *Settings_Label_AlwaysOnTop = nullptr;
 const wchar_t *Settings_Label_LockWindow = nullptr;
+const wchar_t *Settings_Tooltip_LockWindow = nullptr;
 const wchar_t *Settings_Label_AutoHideTitle = nullptr;
 const wchar_t *Settings_Label_RoundedCorners = nullptr;
 const wchar_t *Settings_Label_LockToolbar = nullptr;
@@ -767,6 +768,7 @@ struct EN {
       L"Image Transition Fade";
   static constexpr const wchar_t *Settings_Label_AlwaysOnTop = L"Always on Top";
   static constexpr const wchar_t *Settings_Label_LockWindow = L"Lock Window";
+  static constexpr const wchar_t *Settings_Tooltip_LockWindow = L"Controls whether the program locks the window border by default on startup, rather than following image scaling.";
   static constexpr const wchar_t *Settings_Label_AutoHideTitle =
       L"Auto-Hide Title Bar";
   static constexpr const wchar_t *Settings_Label_RoundedCorners =
@@ -1166,6 +1168,7 @@ struct CN {
       L"图片切换淡入淡出";
   static constexpr const wchar_t *Settings_Label_AlwaysOnTop = L"窗口置顶";
   static constexpr const wchar_t *Settings_Label_LockWindow = L"锁定窗口";
+  static constexpr const wchar_t *Settings_Tooltip_LockWindow = L"此处控制程序启动时默认锁定窗口边框，不跟随图片缩放。";
   static constexpr const wchar_t *Settings_Label_AutoHideTitle =
       L"自动隐藏标题栏";
   static constexpr const wchar_t *Settings_Label_RoundedCorners = L"圆角窗口";
@@ -1765,6 +1768,7 @@ struct TW {
       L"圖片切換淡入淡出";
   static constexpr const wchar_t *Settings_Label_AlwaysOnTop = L"視窗置頂";
   static constexpr const wchar_t *Settings_Label_LockWindow = L"鎖定視窗";
+  static constexpr const wchar_t *Settings_Tooltip_LockWindow = L"此處控制程式啟動時預設鎖定視窗邊框，不跟隨圖片縮放。";
   static constexpr const wchar_t *Settings_Label_AutoHideTitle =
       L"自動隱藏標題列";
   static constexpr const wchar_t *Settings_Label_RoundedCorners = L"圓角視窗";
@@ -2295,6 +2299,7 @@ struct JA {
   static constexpr const wchar_t *Settings_Label_AlwaysOnTop = L"常に手前";
   static constexpr const wchar_t *Settings_Label_LockWindow =
       L"ウィンドウをロック";
+  static constexpr const wchar_t *Settings_Tooltip_LockWindow = L"プログラムの起動時にウィンドウの境界線をデフォルトでロックし、画像の拡大縮小に追従させないように制御します。";
   static constexpr const wchar_t *Settings_Label_AutoHideTitle =
       L"タイトルバー自動非表示";
   static constexpr const wchar_t *Settings_Label_RoundedCorners =
@@ -2916,6 +2921,7 @@ struct RU {
       L"Плавный переход между изображениями";
   static constexpr const wchar_t *Settings_Label_AlwaysOnTop = L"Поверх всех окон";
   static constexpr const wchar_t *Settings_Label_LockWindow = L"Заблокировать окно";
+  static constexpr const wchar_t *Settings_Tooltip_LockWindow = L"Управляет тем, блокирует ли программа по умолчанию границы окна при запуске, не следуя за масштабированием изображения.";
   static constexpr const wchar_t *Settings_Label_AutoHideTitle =
       L"Автоскрытие заголовка";
   static constexpr const wchar_t *Settings_Label_RoundedCorners =
@@ -3471,6 +3477,7 @@ struct DE {
       L"Immer im Vordergrund";
   static constexpr const wchar_t *Settings_Label_LockWindow =
       L"Fenstergröße sperren";
+  static constexpr const wchar_t *Settings_Tooltip_LockWindow = L"Legt fest, ob das Programm beim Start standardmäßig den Fensterrahmen sperrt, anstatt der Bildskalierung zu folgen.";
   static constexpr const wchar_t *Settings_Label_AutoHideTitle =
       L"Titelleiste automatisch ausblenden";
   static constexpr const wchar_t *Settings_Label_RoundedCorners =
@@ -4039,6 +4046,7 @@ struct ES {
       L"Siempre visible";
   static constexpr const wchar_t *Settings_Label_LockWindow =
       L"Bloquear ventana";
+  static constexpr const wchar_t *Settings_Tooltip_LockWindow = L"Controla si el programa bloquea el borde de la ventana de forma predeterminada al inicio, sin seguir la escala de la imagen.";
   static constexpr const wchar_t *Settings_Label_AutoHideTitle =
       L"Ocultar barra de título";
   static constexpr const wchar_t *Settings_Label_RoundedCorners =
@@ -4554,6 +4562,7 @@ template <typename T> void ApplyT() {
   Settings_Label_CrossFade = T::Settings_Label_CrossFade;
   Settings_Label_AlwaysOnTop = T::Settings_Label_AlwaysOnTop;
   Settings_Label_LockWindow = T::Settings_Label_LockWindow;
+  Settings_Tooltip_LockWindow = T::Settings_Tooltip_LockWindow;
   Settings_Label_AutoHideTitle = T::Settings_Label_AutoHideTitle;
   Settings_Label_RoundedCorners = T::Settings_Label_RoundedCorners;
   Settings_Label_LockToolbar = T::Settings_Label_LockToolbar;
