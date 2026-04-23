@@ -90,9 +90,7 @@ namespace GeekIcons {
     extern const VectorIcon ComboDownVector;      // 0xE70D
     extern const VectorIcon HelpCloseVector;      // 0xE8BB
     extern const VectorIcon BackVector;           // 0xE72B
-    extern const VectorIcon WorldVector;          // 0xE774
-    extern const VectorIcon FeedbackVector;       // 0xE90A
-    extern const VectorIcon HotkeysVector;        // 0xE897
+
     extern const VectorIcon StarVector;           // 0xEB51
     extern const VectorIcon PersonalizeVector;    // 0xE771
     extern const VectorIcon VisualsVector;        // 0xE790
@@ -164,9 +162,7 @@ namespace GeekIcons {
     inline IconGlyph ComboUp          = &ComboUpVector;
     inline IconGlyph ComboDown        = &ComboDownVector;
     inline IconGlyph Back             = &BackVector;
-    inline IconGlyph World            = &WorldVector;
-    inline IconGlyph Feedback         = &FeedbackVector;
-    inline IconGlyph Hotkeys          = &HotkeysVector;
+
     inline IconGlyph Star             = &StarVector;
     inline IconGlyph Personalize      = &PersonalizeVector;
     inline IconGlyph Visuals          = &VisualsVector;
