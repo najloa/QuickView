@@ -676,7 +676,7 @@ void GeekContextMenu::RenderSeparator(float y) {
 void GeekContextMenu::RenderBevel() {
     auto sz = m_rt->GetSize();
     D2D1_ROUNDED_RECT rr = D2D1::RoundedRect(
-        D2D1::RectF(0.5f, 0.5f, sz.width - 0.5f, sz.height - 0.5f), CORNER_R, CORNER_R);
+        D2D1::RectF(0.5f, 0.5f, sz.width - 0.5f, sz.height - 0.5f), g_config.RoundedCorners ? CORNER_R : 0.0f, g_config.RoundedCorners ? CORNER_R : 0.0f);
     if (m_bevelLightBrush)
         m_rt->DrawRoundedRectangle(rr, m_bevelLightBrush.Get(), 1.0f);
 }
@@ -919,7 +919,7 @@ void GeekContextMenu::RenderAndUI() {
   
   config.panelBounds =
       D2D1::RectF(0, 0, (float)width / m_scale, (float)height / m_scale);
-  config.cornerRadius = CORNER_R;
+  config.cornerRadius = g_config.RoundedCorners ? CORNER_R : 0.0f;
   config.track = QuickView::UI::GeekGlass::RenderTrack::TrackB_DWM;
 
     m_glassEngine.DrawGeekGlassPanel(m_rt.Get(), config);
@@ -931,7 +931,7 @@ void GeekContextMenu::RenderAndUI() {
         D2D1_COLOR_F fillerColor = m_isLight ? D2D1::ColorF(0.95f, 0.95f, 0.97f) : D2D1::ColorF(0.08f, 0.08f, 0.10f);
         m_rt->CreateSolidColorBrush(D2D1::ColorF(fillerColor.r, fillerColor.g, fillerColor.b, config.opacity), &fillerBrush);
         if (fillerBrush) {
-            D2D1_ROUNDED_RECT rr = D2D1::RoundedRect(config.panelBounds, CORNER_R, CORNER_R);
+            D2D1_ROUNDED_RECT rr = D2D1::RoundedRect(config.panelBounds, g_config.RoundedCorners ? CORNER_R : 0.0f, g_config.RoundedCorners ? CORNER_R : 0.0f);
             m_rt->FillRoundedRectangle(rr, fillerBrush.Get());
         }
     }
