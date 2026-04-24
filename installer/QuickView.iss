@@ -42,6 +42,7 @@ OutputDir=..\Release\installer
   OutputBaseFilename=QuickView_Installer_{#AppArch}
 #endif
 SetupIconFile=..\QuickView.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

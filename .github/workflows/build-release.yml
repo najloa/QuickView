@@ -110,16 +110,38 @@ jobs:
           $outputName = "QuickView_Installer_${tag}_${archUpper}"
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=$version /DAppArch=$arch /DOutputName=$outputName /O"Release\dist" installer\QuickView.iss
 
-      - name: Upload Build Artifacts (For Verification)
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: QuickView-Packages-${{ matrix.platform }}
+          # Use a unique name per matrix job to avoid conflicts in v4
+          name: QuickView-Staging-${{ matrix.platform }}
           path: Release/dist/*
+
+  # New job to merge everything into one single "4-file" distribution
+  publish-final:
+    needs: build-and-release
+    runs-on: windows-latest
+    name: Consolidate & Release
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: QuickView-Staging-*
+          path: final-dist
+          merge-multiple: true # This flattens the structure!
+
+      - name: Upload Consolidated Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuickView-Standard-Distribution
+          path: final-dist/*
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: Release/dist/*
+          files: final-dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
