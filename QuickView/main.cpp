@@ -6023,12 +6023,13 @@ static bool TryRunToolProcessFromCommandLine(int* outExitCode) {
     LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
     if (!argv) return false;
 
-    enum class ToolMode { None, DecodeWorker };
+    enum class ToolMode { None, DecodeWorker, Uninstall };
     ToolMode mode = ToolMode::None;
 
     for (int i = 1; i < argc; ++i) {
         if (!argv[i]) continue;
         if (_wcsicmp(argv[i], L"--decode-worker") == 0) { mode = ToolMode::DecodeWorker; break; }
+        if (_wcsicmp(argv[i], L"--uninstall") == 0) { mode = ToolMode::Uninstall; break; }
     }
 
     if (mode == ToolMode::None) {
@@ -6038,6 +6039,10 @@ static bool TryRunToolProcessFromCommandLine(int* outExitCode) {
 
     switch (mode) {
         case ToolMode::DecodeWorker: *outExitCode = RunDecodeWorker(argc, argv); break;
+        case ToolMode::Uninstall:
+            SettingsOverlay::UnregisterAssociations();
+            *outExitCode = 0;
+            break;
         default:                     *outExitCode = 2; break;
     }
     LocalFree(argv);

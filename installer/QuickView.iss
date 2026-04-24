@@ -74,5 +74,10 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
+[UninstallRun]
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--uninstall"; Flags: runhidden
+
 [UninstallDelete]
-Type: files; Name: "{app}\config.json"
+Type: files; Name: "{app}\QuickView.ini"
+Type: files; Name: "{app}\*.old"
+Type: filesandordirs; Name: "{userappdata}\QuickView"
