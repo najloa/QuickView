@@ -28,18 +28,18 @@ jobs:
           # 1. Get all assets in JSON
           ASSETS=$(gh release view "$TAG_NAME" --json assets -q '.assets')
           
-          # 2. Identify ARM64 asset (Case-Insensitive)
-          URL_ARM64=$(echo "$ASSETS" | jq -r 'map(select(.name | ascii_downcase | contains("arm64"))) | .[0].url // ""')
-          NAME_ARM64=$(echo "$ASSETS" | jq -r 'map(select(.name | ascii_downcase | contains("arm64"))) | .[0].name // ""')
+          # 2. Identify ARM64 portable asset (.zip only, exclude installer .exe)
+          URL_ARM64=$(echo "$ASSETS" | jq -r 'map(select(.name | ascii_downcase | (contains("arm64") and test("\\.zip$")))) | .[0].url // ""')
+          NAME_ARM64=$(echo "$ASSETS" | jq -r 'map(select(.name | ascii_downcase | (contains("arm64") and test("\\.zip$")))) | .[0].name // ""')
           
-          # 3. Identify X64 asset (Case-Insensitive)
-          URL_X64=$(echo "$ASSETS" | jq -r 'map(select(.name | ascii_downcase | (contains("x64") or contains("amd64")))) | .[0].url // ""')
-          NAME_X64=$(echo "$ASSETS" | jq -r 'map(select(.name | ascii_downcase | (contains("x64") or contains("amd64")))) | .[0].name // ""')
+          # 3. Identify X64 portable asset (.zip only, exclude installer .exe)
+          URL_X64=$(echo "$ASSETS" | jq -r 'map(select(.name | ascii_downcase | ((contains("x64") or contains("amd64")) and test("\\.zip$")))) | .[0].url // ""')
+          NAME_X64=$(echo "$ASSETS" | jq -r 'map(select(.name | ascii_downcase | ((contains("x64") or contains("amd64")) and test("\\.zip$")))) | .[0].name // ""')
           
-          # If no explicit x64 found, take the first .zip/exe that isn't ARM64
+          # Fallback: if no explicit x64 .zip found, take the first .zip that isn't ARM64
           if [ -z "$URL_X64" ]; then
-             URL_X64=$(echo "$ASSETS" | jq -r 'map(select((.name | ascii_downcase | contains("arm64") | not) and (.name | test("\\.(zip|exe)$"; "i")))) | .[0].url // ""')
-             NAME_X64=$(echo "$ASSETS" | jq -r 'map(select((.name | ascii_downcase | contains("arm64") | not) and (.name | test("\\.(zip|exe)$"; "i")))) | .[0].name // ""')
+             URL_X64=$(echo "$ASSETS" | jq -r 'map(select((.name | ascii_downcase | contains("arm64") | not) and (.name | ascii_downcase | test("\\.zip$")))) | .[0].url // ""')
+             NAME_X64=$(echo "$ASSETS" | jq -r 'map(select((.name | ascii_downcase | contains("arm64") | not) and (.name | ascii_downcase | test("\\.zip$")))) | .[0].name // ""')
           fi
           
           SHA_X64=""
