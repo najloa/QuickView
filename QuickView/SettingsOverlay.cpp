@@ -1155,6 +1155,20 @@ void SettingsOverlay::BuildMenu() {
     itemDimmer.tooltipText = AppStrings::Settings_Tooltip_AmbientDimmer;
     tabTheme.items.push_back(itemDimmer);
 
+    // Rounded Corners
+    SettingsItem itemRounded = { AppStrings::Settings_Label_RoundedCorners, OptionType::Toggle, &g_config.RoundedCorners };
+    itemRounded.onChange = []() {
+        bool enable = g_config.RoundedCorners;
+        DWM_WINDOW_CORNER_PREFERENCE preference = enable ? DWMWCP_ROUND : DWMWCP_DONOTROUND;
+        DwmSetWindowAttribute(GetActiveWindow(), DWMWA_WINDOW_CORNER_PREFERENCE, &preference, sizeof(preference));
+        SaveConfig();
+    };
+    itemRounded.tooltipText = AppStrings::Settings_Tooltip_RoundedCorners;
+    if (!IsWindows11()) {
+        itemRounded.isDisabled = true;
+    }
+    tabTheme.items.push_back(itemRounded);
+
     if (g_config.ThemeMode == 3) {
         // Custom Theme Mode options
         SettingsItem itemAccentColor = { AppStrings::Settings_Label_AccentColor, OptionType::CustomColorRow };
@@ -1386,19 +1400,6 @@ void SettingsOverlay::BuildMenu() {
     itemMenus.onChange = autoSwitchToCustom;
     tabTheme.items.push_back(itemMenus);
 
-    // Rounded Corners
-    SettingsItem itemRounded = { AppStrings::Settings_Label_RoundedCorners, OptionType::Toggle, &g_config.RoundedCorners };
-    itemRounded.onChange = []() {
-        bool enable = g_config.RoundedCorners;
-        DWM_WINDOW_CORNER_PREFERENCE preference = enable ? DWMWCP_ROUND : DWMWCP_DONOTROUND;
-        DwmSetWindowAttribute(GetActiveWindow(), DWMWA_WINDOW_CORNER_PREFERENCE, &preference, sizeof(preference));
-        SaveConfig();
-    };
-    itemRounded.tooltipText = AppStrings::Settings_Tooltip_RoundedCorners;
-    if (!IsWindows11()) {
-        itemRounded.isDisabled = true;
-    }
-    tabTheme.items.push_back(itemRounded);
 
     // Theme Management
     SettingsItem itemThemeManage = { AppStrings::Settings_Header_ThemeManagement, OptionType::DualActionButton };
