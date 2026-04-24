@@ -70,18 +70,23 @@ jobs:
           $arch = "${{ matrix.platform }}".ToLower()
           $archUpper = if ("${{ matrix.platform }}" -eq "x64") { "X64" } else { "ARM64" }
           
-          # Use tag name if available, otherwise fallback to current dev version
-          $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "v2.1.0" }
-          
+          # Extract actual version from the compiled EXE to ensure filename accuracy
+          $exePath = "QuickView\bin\${{ matrix.platform }}\Release\QuickView.exe"
+          if (-not (Test-Path $exePath)) { Write-Error "EXE not found"; exit 1 }
+          $rawVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exePath).ProductVersion
+          # Format version (ensure it starts with 'v')
+          $tag = if ($rawVersion -like "v*") { $rawVersion } else { "v$rawVersion" }
+          echo "DETECTED_TAG=$tag" >> $env:GITHUB_ENV
+          echo "Detected version from EXE: $tag"
+
           # Create temporary staging dir
           New-Item -ItemType Directory -Force "Release/$arch"
           New-Item -ItemType Directory -Force "Release/dist"
           
           # Copy exe
-          $exePath = "QuickView\bin\${{ matrix.platform }}\Release\QuickView.exe"
           Copy-Item $exePath "Release/$arch/QuickView.exe"
 
-          # Pack portable version Zip (e.g. QuickView_v2.1.0_X64.zip)
+          # Pack portable version Zip
           $zipName = "QuickView_${tag}_${archUpper}.zip"
           Compress-Archive -Path "Release/$arch/QuickView.exe" -DestinationPath "Release/dist/$zipName" -Force
 
@@ -90,7 +95,7 @@ jobs:
         run: |
           $arch = "${{ matrix.platform }}".ToLower()
           $archUpper = if ("${{ matrix.platform }}" -eq "x64") { "X64" } else { "ARM64" }
-          $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "v2.1.0" }
+          $tag = "${{ env.DETECTED_TAG }}"
           $version = $tag.TrimStart('v')
           
           # Invoke ISCC, Output to Release/dist directly
