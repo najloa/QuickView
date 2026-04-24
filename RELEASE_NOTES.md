@@ -1,59 +1,58 @@
-# 🚀 QuickView v5.3.0 - Vector UI & Interaction Update
+# 🚀 QuickView v5.3.0 - 极致便携，矢量新生
 
 **Release Date**: 2026-04-24
 
-### 🍃 Our Philosophy: Green, Pure, and Portable
-QuickView is built on the core principle of **Portable First**. By default, it does not write to the registry or pollute system paths.
-- **Portable Preferred**: We strongly recommend users to choose the `Portable.zip` version for a truly standalone experience with all configurations kept in the application folder.
-- **Installer Version**: The new installer (.exe) is provided solely for **WinGet** ecosystem compatibility. Even when using the installer, we ensure a "zero-footprint" experience through deep cleanup logic during uninstallation.
+### 🍃 产品哲学：绿色、纯净、便携
+QuickView 始终坚持 **绿色便携 (Portable First)** 的核心理念。本应用默认不写入注册表，不污染系统路径。
+- **便携优先**：我们强烈建议用户优先选择 `Portable.zip` 版本，解压即用，配置随身。
+- **安装版说明**：新增的安装版 (.exe) 仅作为对 **WinGet** 生态的兼容支持。即便使用安装版，我们也通过底层优化确保了卸载时的“零残留”清理，维持系统的绝对纯净。
 
 ---
 
-### 🎨 Vectorized UI Revolution
-We have fully migrated all UI icons to our custom-built **GeekIcon** vector engine:
-- **Pixel Perfection**: Rendered using Direct2D paths, ensuring crisp visuals on 4K/8K displays and high-DPI scaling.
-- **Zero Dependencies**: Eliminated reliance on system icon fonts, guaranteeing a consistent look across all Windows environments.
+### 🎨 矢量化视觉演进
+我们将 UI 图标全面迁移至自研的 **GeekIcon** 矢量引擎：
+- **像素级精准**：基于 Direct2D 矢量路径渲染，在 4K/8K 及高 DPI 缩放环境下依然保持锐利。
+- **零外部依赖**：彻底移除对系统图标字体的依赖，确保在任何 Windows 环境下视觉高度统一。
 
-### 🛠 Windows Integration & Deep Cleanup
-To support automated distribution while maintaining our green roots, we've implemented several low-level optimizations:
-- **Deep Uninstallation**: Introduced a new `--uninstall` flag for total removal of registry ProgIDs, association caches, and AppData remnants.
-- **WinGet Automation**: Optimized our submission pipeline to ensure standard installers are verified and easily accessible via `winget install QuickView`.
-- **Seamless Association**: Refined Windows 11 "Default Apps" integration for better system-level recognition.
+### 🛠 Windows 集成与“深层清理”
+为了在支持自动化分发的同时保持绿色初衷，我们做了大量底层优化：
+- **零残留卸载**：为安装版引入 `--uninstall` 深度清理机制。卸载时会彻底擦除所有注册表 ProgID、关联缓存及 AppData 残留。
+- **WinGet 自动化**：优化了提交流水线，确保通过 `winget install QuickView` 获取的是经过验证的正式安装包。
+- **智能关联**：优化了 Windows 11 的“默认应用”注册逻辑，提升系统集成度。
 
-### 🎥 Interaction & Animation
-- **Dynamic UX**: Automatically switches to a **Hand Cursor** when panning images larger than the viewport (#144).
-- **Precision Control**: Added a real-time **Frame Counter** to the animation scrubber for GIF/WebP files (#167), and added support for horizontal mouse wheels (#156).
-- **Smart Zoom**: Refined the double-click zoom logic to intelligently cycle through common scaling modes.
+### 🎥 交互体验增强
+- **动态交互**：图片超出视口时自动切换至 **抓手光标 (Hand Cursor)**。
+- **精密控制**：为动画文件（GIF/WebP）进度条增加了帧计数显示 (#167)，并支持鼠标水平滚轮 (#156)。
+- **缩放循环**：优化了双击缩放逻辑，在常用的比例模式间智能切换。
 
-### 🌈 HDR & Color (Experimental)
-- **Luminance Correction**: Addressed "washed out" colors on certain HDR displays by prioritizing WinRT/DXGI hardware reports for peak luminance mapping (#131).
-
----
-
-### 📦 Full Changelog
-
-#### ✨ Features
-- Migrated to the high-performance **GeekIcon** vector system, removing font dependencies.
-- Implemented Windows Default Apps integration and enhanced Portable Mode UI (#168).
-- Added deep uninstallation cleanup via the `--uninstall` parameter.
-- Supported horizontal scrolling and thumb wheel zoom/pan (#156).
-- Added `Ctrl+Wheel` zoom lock and `Alt+Wheel` zoom speed adjustment.
-
-#### 🐞 Fixes & Improvements
-- **UI**: Fixed context menu icons and shadow synchronization on Windows 10.
-- **UI**: Beautified the progress bar as a capsule and integrated a frame counter (#167).
-- **UX**: Refined panning hand cursor hit-testing and logic (#144).
-- **HDR**: Resolved peak luminance detection issues by prioritizing physical hardware reports over ICC profiles (#131).
-- **Performance**: Migrated to a zero-overhead TraceLogging/ETW structured logging system.
-- **Stability**: Fixed ghost image artifacts during Standard to Titan mode transitions.
-
-#### 🏗 Build & CI
-- Established a fully automated packaging system using GitHub Actions and Inno Setup.
-- Optimized vcpkg multi-tier caching for significantly faster pipeline builds.
-- Implemented a WinGet auto-submission workflow with installer validation.
+### 🌈 HDR 与色彩实验室（实验性）
+- **HDR 亮度校正**：针对部分显示器色彩“冲淡”问题，引入了基于 WinRT/DXGI 的峰值亮度映射优化 (#131)。
 
 ---
 
-### 🤝 Acknowledgments
-A special thank you to all users who participated in testing and provided feedback. Every millisecond of QuickView's speed is thanks to your support.
-- Special thanks to **@bananakid**, **@PYCHBI**, **@lrbin50**, **@1kari-s**, **@Battler624**, and **@toxieainc** for their bug reports and technical insights.
+### 📦 技术变更日志 (Full Changelog)
+
+#### ✨ 新功能 (Features)
+- 全面迁移至高性能矢量图标系统 (GeekIcon)，移除字体依赖。
+- 实现 Windows 默认应用集成及增强的便携模式 UI (#168)。
+- 增加安装版深度卸载清理参数 (`--uninstall`)。
+- 支持鼠标水平滚轮/拇指轮缩放与滚动 (#156)。
+- 增加 Ctrl+滚轮缩放锁定与 Alt+滚轮缩放速度调节。
+
+#### 🐞 修复与优化 (Fixes & Improvements)
+- **UI**: 修复 Windows 10 下右键菜单图标显示及阴影同步问题。
+- **UI**: 进度条美化为胶囊风格，并集成实时帧计数器 (#167)。
+- **UX**: 优化大图平移时的手型光标逻辑 (#144)。
+- **HDR**: 修复 Advanced Color 模式下的亮度上限检测问题，优先采用物理硬件报告 (#131)。
+- **Performance**: 迁移至零开销的 TraceLogging/ETW 结构化日志系统。
+- **Stability**: 解决了 Standard 与 Titan 模式切换时的残留重影问题。
+
+#### 🏗 构建与分发 (Build & CI)
+- 建立基于 GitHub Actions 与 Inno Setup 的全自动打包发布系统。
+- 优化 vcpkg 多级缓存，大幅提升流水线构建速度。
+- 实现了 WinGet 自动提交工作流，并针对安装包类型进行了校验优化。
+
+---
+
+### 🤝 鸣谢
+感谢所有参与测试并提供反馈的用户。QuickView 的每一次加速，都离不开你们的支持。
