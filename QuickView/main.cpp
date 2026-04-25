@@ -163,6 +163,7 @@ static void SyncDCompState(HWND hwnd, float winW, float winH, bool animate);
 #define WM_UPDATE_FOUND  (WM_APP + 2)
 #define WM_ENGINE_EVENT  (WM_APP + 3)
 #define WM_ROUTED_OPEN   (WM_APP + 10)  // [Phase 0] Reserved for pipe-routed file open
+constexpr UINT_PTR TIMER_ID_STARTUP_SHOW = 992;
 
 
 
@@ -6102,6 +6103,7 @@ static void TryCleanupOldVersion(int argc, LPWSTR* argv) {
     }
 }
 HCURSOR g_currentCursor = nullptr;
+int g_initialCmdShow = SW_SHOW;
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int nCmdShow) {
     // === Priority 0: CMD Parsing & Subprocess dispatch ===
@@ -6271,7 +6273,61 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int nCmdSh
          }
          g_imageEngine->SetPrefetchPolicy(policy);
     }
-    
+
+    // --- [v10.5] Fast-Lane Boot Integration ---
+    // Start decoding immediately for normal images, but keep Titan startup on
+    // the original path so the first frame is sized against a stable window.
+    g_initialCmdShow = nCmdShow;
+    bool startedInitialLoadEarly = false;
+    bool deferStartupShow = false;
+    std::wstring initialImagePath = QuickView::ProcessRouter::ParseImagePath();
+    if (!initialImagePath.empty()) {
+      std::error_code ec;
+      if (!std::filesystem::is_directory(
+              std::filesystem::path(initialImagePath), ec)) {
+        // It's a file! Kick off decoding immediately
+        bool isTitanCandidate = false;
+        if (g_imageLoader) {
+          CImageLoader::ImageHeaderInfo info =
+              g_imageLoader->PeekHeader(initialImagePath.c_str());
+          if (info.width <= 0 || info.height <= 0 ||
+              info.format == L"Unknown") {
+            CImageLoader::ImageInfo fastInfo{};
+            if (SUCCEEDED(g_imageLoader->GetImageInfoFast(
+                    initialImagePath.c_str(), &fastInfo))) {
+              if (info.width <= 0 && fastInfo.width > 0)
+                info.width = (int)fastInfo.width;
+              if (info.height <= 0 && fastInfo.height > 0)
+                info.height = (int)fastInfo.height;
+              if (info.format == L"Unknown" && !fastInfo.format.empty())
+                info.format = fastInfo.format;
+            }
+          }
+
+          std::wstring fmtUpper = info.format;
+          std::transform(fmtUpper.begin(), fmtUpper.end(), fmtUpper.begin(),
+                         ::towupper);
+          const bool isSupportedFormat =
+              (fmtUpper == L"JPEG" || fmtUpper == L"JPG" ||
+               fmtUpper == L"WEBP" || fmtUpper == L"PNG" ||
+               fmtUpper == L"JXL" || fmtUpper == L"TIF" ||
+               fmtUpper == L"TIFF" || fmtUpper == L"AVIF" ||
+               fmtUpper == L"HEIC" || fmtUpper == L"HIF");
+          const bool sizeTrigger = (info.width > 8192 || info.height > 8192);
+          const size_t pixelCount = (size_t)(std::max)(0, info.width) *
+                                    (size_t)(std::max)(0, info.height);
+          const bool pixelTrigger = (pixelCount > 50000000);
+          isTitanCandidate = isSupportedFormat && (sizeTrigger || pixelTrigger);
+        }
+        if (!isTitanCandidate) {
+          g_navigator.Initialize(initialImagePath);
+          LoadImageAsync(hwnd, initialImagePath);
+          startedInitialLoadEarly = true;
+          deferStartupShow = true;
+        }
+      }
+    }
+
     // Initialize DirectComposition (Visual Ping-Pong Architecture)
     // g_compEngine = std::make_unique<CompositionEngine>();
     g_compEngine = new CompositionEngine();
@@ -6305,8 +6361,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int nCmdSh
     g_toolbar.SetExifState(g_runtime.ShowInfoPanel);
     g_toolbar.SetPinned(g_config.LockBottomToolbar); // Lock toolbar from config
     
-    ShowWindow(hwnd, nCmdShow); UpdateWindow(hwnd);
-    ForceForegroundWindow(hwnd); // Ensure window takes focus
+    if (deferStartupShow) {
+        SetTimer(hwnd, TIMER_ID_STARTUP_SHOW, 150, nullptr);
+    } else {
+        ShowWindow(hwnd, nCmdShow); UpdateWindow(hwnd);
+        ForceForegroundWindow(hwnd); // Ensure window takes focus
+    }
     
     // Initialize Toolbar layout with window size (fixes initial rendering issue)
     {
@@ -6315,17 +6375,24 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int nCmdSh
         // Force initial render of all UI layers
         RequestRepaint(PaintLayer::All);
     }
-    
-    // [Phase 0] Use ProcessRouter::ParseImagePath for correct --viewer-child handling.
-    std::wstring initialImagePath = QuickView::ProcessRouter::ParseImagePath();
+
     if (!initialImagePath.empty()) {
+      std::error_code ec;
+      if (std::filesystem::is_directory(std::filesystem::path(initialImagePath),
+                                        ec)) {
+        // Directory: Open it now that UI is fully initialized
+        OpenPathOrDirectory(hwnd, initialImagePath);
+      } else if (startedInitialLoadEarly) {
+        // File: Already kicked off above. Force event queue check just in case
+        // it finished insanely fast.
+        PostMessageW(hwnd, WM_ENGINE_EVENT, 0, 0);
+      } else {
+        // Titan startup falls back to the original open-after-show path so the
+        // first transform uses the real client size.
         if (OpenPathOrDirectory(hwnd, initialImagePath)) {
-            std::error_code ec;
-            if (!std::filesystem::is_directory(std::filesystem::path(initialImagePath), ec)) {
-                // [Fix Race] Force-check event queue for super-fast loads on startup
-                PostMessageW(hwnd, WM_ENGINE_EVENT, 0, 0);
-            }
+          PostMessageW(hwnd, WM_ENGINE_EVENT, 0, 0);
         }
+      }
     } else {
         // No file specified - auto open file dialog
         OPENFILENAMEW ofn = {};
@@ -6566,6 +6633,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
         return 0;
 
     case WM_TIMER: {
+        if (wParam == TIMER_ID_STARTUP_SHOW) {
+            KillTimer(hwnd, TIMER_ID_STARTUP_SHOW);
+            if (!IsWindowVisible(hwnd)) {
+                ShowWindow(hwnd, g_initialCmdShow);
+                UpdateWindow(hwnd);
+                ForceForegroundWindow(hwnd);
+            }
+            return 0;
+        }
+
         // [Startup Optimization] Handle deferred registry check
         if (wParam == TIMER_ID_REGISTRY_CHECK) {
             KillTimer(hwnd, TIMER_ID_REGISTRY_CHECK);
@@ -10060,6 +10137,7 @@ void ProcessEngineEvents(HWND hwnd) {
             if (resourceReady) {
                 // Apply State
                 // g_imageResource is already populated
+
                 g_isBlurry = isPreview;
                 g_imageQualityLevel = isPreview ? 1 : 2;
                 g_imagePath = evt.filePath;
@@ -10325,6 +10403,13 @@ void ProcessEngineEvents(HWND hwnd) {
                         SyncDCompState(hwnd, (float)rc.right, (float)rc.bottom);
                         g_compEngine->Commit();
                     }
+                }
+
+                if (!IsWindowVisible(hwnd)) {
+                    ShowWindow(hwnd, g_initialCmdShow);
+                    UpdateWindow(hwnd);
+                    ForceForegroundWindow(hwnd);
+                    KillTimer(hwnd, TIMER_ID_STARTUP_SHOW);
                 }
 
                 // Cleanup
