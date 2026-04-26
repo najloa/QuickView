@@ -40,6 +40,7 @@ enum ContextMenuCommand : UINT {
     IDM_WALLPAPER_TILE,
     IDM_TOGGLE_SPAN, // [New] Video Wall Mode
     IDM_COMPARE_MODE, // Toggle Compare Mode
+    IDM_OVERLAY_MODE, // Toggle Overlay (Tracing) Mode
 
     // [Gallery] Group
     IDM_GALLERY_OPEN_COMPARE,

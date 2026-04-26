@@ -130,6 +130,10 @@ public:
     // [Geek Glass] Returns the complete screen-space transform matrix applied to the image by DComp
     D2D1_MATRIX_3X2_F GetScreenTransform() const;
 
+    // [Overlay Mode] Root visual opacity for window transparency
+    // Uses DComp native SetOpacity() — never use SetLayeredWindowAttributes with DComp!
+    HRESULT SetRootOpacity(float opacity);
+    float GetRootOpacity() const { return m_rootOpacity; }
 
 private:
     HRESULT CreateLayerSurface(UILayer layer, UINT width, UINT height);
@@ -237,4 +241,7 @@ private:
     float m_currentCompScaleX = 1.0f;
     float m_currentCompScaleY = 1.0f;
     D2D1_MATRIX_3X2_F m_currentModelMatrix = D2D1::Matrix3x2F::Identity();
+
+    // [Overlay Mode] Root visual opacity (1.0 = fully opaque)
+    float m_rootOpacity = 1.0f;
 };

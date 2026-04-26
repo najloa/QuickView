@@ -33,7 +33,14 @@ enum class ToolbarButtonID {
     AnimDirtyRect,
     AnimSpeedUp,
     AnimSpeedDown,
-    AnimSeek
+    AnimSeek,
+    // Overlay (Tracing) mode
+    OverlayAlphaUp,
+    OverlayAlphaDown,
+    OverlayZoomIn,
+    OverlayZoomOut,
+    OverlayPassthrough,
+    OverlayExit
 };
 
 struct ToolbarButton {
@@ -98,6 +105,11 @@ public:
     }
     void SetDraggingProgress(bool dragging) { m_isDraggingProgress = dragging; }
     float GetAnimSpeedMultiplier() const { return m_animSpeedMult; }
+
+    // [Overlay Mode]
+    void SetOverlayMode(bool enabled);
+    bool IsOverlayMode() const { return m_overlayMode; }
+    void SetOverlayAlpha(BYTE alpha) { m_overlayAlphaPercent = (int)(alpha * 100.0f / 255.0f + 0.5f); }
     
     // [Phase 3] Get minimum required width for toolbar
     float GetMinWidth() const { return m_minRequiredWidth > 0.0f ? m_minRequiredWidth : (PADDING_X * 2 + 8 * BUTTON_SIZE + 7 * GAP) * m_uiScale; }
@@ -129,6 +141,8 @@ private:
     bool m_animMode = false;
     bool m_animPlaying = true;
     bool m_animDirtyRect = false;
+    bool m_overlayMode = false;
+    int  m_overlayAlphaPercent = 50;
     float m_animProgress = 0.0f;
     uint32_t m_currentFrame = 0;
     uint32_t m_totalFrames = 0;

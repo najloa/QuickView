@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "ContextMenu.h"
 #include "GeekContextMenu.h"
 #include "AppStrings.h"
@@ -55,6 +55,8 @@ void ShowContextMenu(HWND hwnd, POINT pt, bool hasImage, bool needsExtensionFix,
     {
         std::vector<MI> viewItems;
         viewItems.push_back(MI::Check(IDM_COMPARE_MODE, AppStrings::Context_CompareMode, isCompareMode, GeekIcons::Compare));
+        bool isOverlay = (g_runtime.OverlayModeState != OverlayState::Normal);
+        viewItems.push_back(MI::Check(IDM_OVERLAY_MODE, L"Overlay Mode", isOverlay, GeekIcons::Eye));
         viewItems.push_back(MI::Sep());
         viewItems.push_back(MI::Normal(IDM_ZOOM_100, AppStrings::Context_ActualSize));
         viewItems.push_back(MI::Normal(IDM_ZOOM_FIT, AppStrings::Context_FitToScreen));

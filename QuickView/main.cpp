@@ -669,6 +669,16 @@ static bool RenderCompareComposite(HWND hwnd);
 static void MarkCompareDirty();
 static void EnterCompareMode(HWND hwnd);
 static void ExitCompareMode(HWND hwnd);
+
+// Overlay (Tracing) Mode
+static void EnterOverlayMode(HWND hwnd);
+static void ExitOverlayMode(HWND hwnd);
+static void EnterPassthroughMode(HWND hwnd);
+static void ExitPassthroughMode(HWND hwnd);
+static void AdjustOverlayAlpha(HWND hwnd, int delta);
+static bool IsOverlayModeActive();
+static bool IsPassthroughModeActive();
+static constexpr int HOTKEY_ID_EXIT_PASSTHROUGH = 0x0001;
 static void CaptureCurrentImageAsCompareLeft();
 static FireAndForget LoadImageIntoCompareLeftSlot(HWND hwnd, std::wstring path, std::function<void(bool)> callback = nullptr);
 static void ReloadComparePaneForDisplayChange(HWND hwnd, ComparePane pane);
@@ -2239,6 +2249,176 @@ static void ExitCompareMode(HWND hwnd) {
         SyncDCompState(hwnd, (float)updatedRc.right, (float)updatedRc.bottom);
         g_compEngine->Commit();
     }
+}
+
+
+// ============================================================================
+// Overlay (Tracing) Mode
+// ============================================================================
+static bool IsOverlayModeActive() {
+    return g_runtime.OverlayModeState != OverlayState::Normal;
+}
+
+static bool IsPassthroughModeActive() {
+    return g_runtime.OverlayModeState == OverlayState::Overlay_Passthrough;
+}
+
+static void EnterOverlayMode(HWND hwnd) {
+    if (IsOverlayModeActive()) return;
+
+    // Mutual exclusion: exit fullscreen and compare mode first
+    if (g_isFullScreen) {
+        SendMessage(hwnd, WM_COMMAND, IDM_FULLSCREEN, 0);
+    }
+    if (IsCompareModeActive()) {
+        ExitCompareMode(hwnd);
+    }
+
+    // Save current topmost state for restoration
+    g_runtime.WasAlwaysOnTopBeforeOverlay = g_config.AlwaysOnTop;
+
+    // Set state
+    g_runtime.OverlayModeState = OverlayState::Overlay_Interactive;
+    if (g_runtime.OverlayAlpha == 0) g_runtime.OverlayAlpha = 128; // Default 50%
+
+    // Force topmost
+    if (!g_config.AlwaysOnTop) {
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    }
+
+    // DComp native transparency (NEVER use SetLayeredWindowAttributes with DComp!)
+    float opacity = g_runtime.OverlayAlpha / 255.0f;
+    g_compEngine->SetRootOpacity(opacity);
+
+    // Clear background to fully transparent so user can see through
+    g_compEngine->UpdateBackground((float)g_compEngine->GetWidth(), (float)g_compEngine->GetHeight(),
+                                   D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f), false);
+    g_compEngine->Commit();
+
+    // Switch toolbar to overlay mode
+    g_toolbar.SetOverlayMode(true);
+    g_toolbar.SetOverlayAlpha(g_runtime.OverlayAlpha);
+    RECT rc{};
+    GetClientRect(hwnd, &rc);
+    g_toolbar.UpdateLayout((float)rc.right, (float)rc.bottom);
+
+    int percent = (int)(g_runtime.OverlayAlpha * 100.0f / 255.0f + 0.5f);
+    wchar_t buf[64];
+    swprintf_s(buf, L"Overlay Mode: ON (%d%%)", percent);
+    g_osd.Show(hwnd, buf, false);
+
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
+static void ExitOverlayMode(HWND hwnd) {
+    if (!IsOverlayModeActive()) return;
+
+    // If in passthrough, exit that first
+    if (IsPassthroughModeActive()) {
+        ExitPassthroughMode(hwnd);
+    }
+
+    // Restore opacity to 100%
+    g_compEngine->SetRootOpacity(1.0f);
+    g_compEngine->Commit();
+
+    // Restore topmost state
+    if (!g_runtime.WasAlwaysOnTopBeforeOverlay) {
+        g_config.AlwaysOnTop = false;
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    }
+
+    // Restore toolbar
+    g_toolbar.SetOverlayMode(false);
+    RECT rc{};
+    GetClientRect(hwnd, &rc);
+    g_toolbar.UpdateLayout((float)rc.right, (float)rc.bottom);
+
+    g_runtime.OverlayModeState = OverlayState::Normal;
+
+    // Force background redraw with normal canvas color
+    RECT bgRc{};
+    GetClientRect(hwnd, &bgRc);
+    SyncDCompState(hwnd, (float)bgRc.right, (float)bgRc.bottom);
+    g_compEngine->Commit();
+
+    g_osd.Show(hwnd, L"Overlay Mode: OFF", false);
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
+static void AdjustOverlayAlpha(HWND hwnd, int delta) {
+    if (!IsOverlayModeActive() || IsPassthroughModeActive()) return;
+
+    int newAlpha = (int)g_runtime.OverlayAlpha + delta;
+    newAlpha = std::clamp(newAlpha, 25, 255); // 10% to 100%
+    g_runtime.OverlayAlpha = (BYTE)newAlpha;
+
+    float opacity = newAlpha / 255.0f;
+    g_compEngine->SetRootOpacity(opacity);
+    g_compEngine->Commit();
+
+    g_toolbar.SetOverlayAlpha(g_runtime.OverlayAlpha);
+
+    int percent = (int)(newAlpha * 100.0f / 255.0f + 0.5f);
+    wchar_t buf[64];
+    swprintf_s(buf, L"Opacity: %d%%", percent);
+    g_osd.Show(hwnd, buf, true);
+
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
+static void EnterPassthroughMode(HWND hwnd) {
+    if (!IsOverlayModeActive() || IsPassthroughModeActive()) return;
+
+    // Show confirmation dialog
+    int result = MessageBoxW(hwnd,
+        L"Click-through mode will make QuickView transparent to all mouse input.\n\n"
+        L"Press Shift+Esc or right-click QuickView on the taskbar to exit.\n\n"
+        L"Continue?",
+        L"QuickView - Click-Through Mode",
+        MB_OKCANCEL | MB_ICONINFORMATION | MB_DEFBUTTON1);
+
+    if (result != IDOK) return;
+
+    // Add WS_EX_LAYERED | WS_EX_TRANSPARENT for mouse passthrough
+    // CRITICAL: Do NOT call SetLayeredWindowAttributes — it breaks DComp!
+    LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+    SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED | WS_EX_TRANSPARENT);
+
+    // Register global hotkey (Shift+Esc) — only way to exit since we lose focus
+    RegisterHotKey(hwnd, HOTKEY_ID_EXIT_PASSTHROUGH, MOD_SHIFT, VK_ESCAPE);
+
+    // Hide toolbar
+    g_toolbar.SetVisible(false);
+    g_toolbar.SetPinned(false);
+
+    g_runtime.OverlayModeState = OverlayState::Overlay_Passthrough;
+
+    g_osd.Show(hwnd, L"Click-Through: ON (Shift+Esc to exit)", false);
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
+static void ExitPassthroughMode(HWND hwnd) {
+    if (!IsPassthroughModeActive()) return;
+
+    // Remove WS_EX_TRANSPARENT (and WS_EX_LAYERED) to restore input
+    LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+    exStyle &= ~(WS_EX_TRANSPARENT | WS_EX_LAYERED);
+    SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
+
+    // Unregister global hotkey
+    UnregisterHotKey(hwnd, HOTKEY_ID_EXIT_PASSTHROUGH);
+
+    // Restore toolbar
+    g_toolbar.SetVisible(true);
+
+    g_runtime.OverlayModeState = OverlayState::Overlay_Interactive;
+
+    // Bring window back to foreground
+    SetForegroundWindow(hwnd);
+
+    g_osd.Show(hwnd, L"Click-Through: OFF", false);
+    InvalidateRect(hwnd, nullptr, FALSE);
 }
 
 // Helper: Check if panning makes sense (image exceeds window OR window exceeds screen)
@@ -6073,7 +6253,11 @@ static void SyncDCompState(HWND hwnd, float winW, float winH, bool animate) {
 
     // 1. Update Background (Independent of image state)
     D2D1_COLOR_F bgColor = ResolveCanvasColor();
-    g_compEngine->UpdateBackground(winW, winH, bgColor, g_config.CanvasColor == 2 || g_config.CanvasShowGrid);
+    // [Overlay Mode] Use fully transparent background so user sees through to desktop
+    if (IsOverlayModeActive()) {
+        bgColor = D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f);
+    }
+    g_compEngine->UpdateBackground(winW, winH, bgColor, IsOverlayModeActive() ? false : (g_config.CanvasColor == 2 || g_config.CanvasShowGrid));
 
     if (IsCompareModeActive()) {
         ResetSmoothZoomState();
@@ -7155,6 +7339,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
         return 0;
     }
 
+    case WM_HOTKEY: {
+        if (wParam == HOTKEY_ID_EXIT_PASSTHROUGH) {
+            ExitPassthroughMode(hwnd);
+            RequestRepaint(PaintLayer::All);
+        }
+        return 0;
+    }
+
     case WM_TIMER: {
         if (wParam == TIMER_ID_STARTUP_SHOW) {
             KillTimer(hwnd, TIMER_ID_STARTUP_SHOW);
@@ -7559,6 +7751,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
     }
     
     case WM_CLOSE: {
+        // [Overlay] Cleanup global hotkey if still registered
+        if (IsPassthroughModeActive()) {
+            UnregisterHotKey(hwnd, HOTKEY_ID_EXIT_PASSTHROUGH);
+        }
         if (!CheckUnsavedChanges(hwnd)) return 0;
 
         // Save Last Window Size
@@ -8770,6 +8966,28 @@ SKIP_EDGE_NAV:;
                     ExitCompareMode(hwnd);
                     RequestRepaint(PaintLayer::All);
                     break;
+                // Overlay mode buttons
+                case ToolbarButtonID::OverlayAlphaUp:
+                    AdjustOverlayAlpha(hwnd, +25);
+                    break;
+                case ToolbarButtonID::OverlayAlphaDown:
+                    AdjustOverlayAlpha(hwnd, -25);
+                    break;
+                case ToolbarButtonID::OverlayZoomIn:
+                    SendMessage(hwnd, WM_KEYDOWN, VK_ADD, 0);
+                    break;
+                case ToolbarButtonID::OverlayZoomOut:
+                    SendMessage(hwnd, WM_KEYDOWN, VK_SUBTRACT, 0);
+                    break;
+                case ToolbarButtonID::OverlayPassthrough:
+                    if (!IsPassthroughModeActive()) EnterPassthroughMode(hwnd);
+                    else ExitPassthroughMode(hwnd);
+                    RequestRepaint(PaintLayer::All);
+                    break;
+                case ToolbarButtonID::OverlayExit:
+                    ExitOverlayMode(hwnd);
+                    RequestRepaint(PaintLayer::All);
+                    break;
                 case ToolbarButtonID::CompareSwap:
                     if (IsCompareModeActive() && g_compare.left.valid && g_imageResource) {
                         ImageResource rightRes = std::move(g_imageResource);
@@ -9259,10 +9477,30 @@ SKIP_EDGE_NAV:;
         bool alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
         
         // [Fix] 增加对 VK_MENU 的排除，防止 Alt 键交给 DefWindowProc 触发菜单系统
-        if (message == WM_SYSKEYDOWN && wParam != VK_F10 && wParam != VK_LEFT && wParam != VK_RIGHT && wParam != VK_MENU) {
+        if (message == WM_SYSKEYDOWN && wParam != VK_F10 && wParam != VK_LEFT && wParam != VK_RIGHT && wParam != VK_UP && wParam != VK_DOWN && wParam != VK_MENU) {
             break; // 其他系统键交给默认处理
         }
         
+        // [Overlay Mode] Priority key handling
+        if (IsOverlayModeActive() && !IsPassthroughModeActive()) {
+            if (alt && wParam == VK_UP) { AdjustOverlayAlpha(hwnd, +25); return 0; }
+            if (alt && wParam == VK_DOWN) { AdjustOverlayAlpha(hwnd, -25); return 0; }
+            if (wParam == VK_ESCAPE) { ExitOverlayMode(hwnd); RequestRepaint(PaintLayer::All); return 0; }
+        }
+        // Ctrl+Shift+O: Toggle Overlay Mode
+        if (ctrl && shift && wParam == 'O') {
+            if (IsOverlayModeActive()) ExitOverlayMode(hwnd);
+            else EnterOverlayMode(hwnd);
+            RequestRepaint(PaintLayer::All);
+            return 0;
+        }
+        // Shift+Esc: Toggle Passthrough (only in Interactive overlay)
+        if (shift && wParam == VK_ESCAPE && IsOverlayModeActive() && !IsPassthroughModeActive()) {
+            EnterPassthroughMode(hwnd);
+            RequestRepaint(PaintLayer::All);
+            return 0;
+        }
+
         switch (wParam) {
         case VK_MENU: return 0; // 拦截 Alt 键按下，配合 WM_SYSKEYUP 彻底消除菜单循环问题
         // Navigation
@@ -10187,6 +10425,13 @@ SKIP_EDGE_NAV:;
             } else {
                 EnterCompareMode(hwnd);
             }
+            RequestRepaint(PaintLayer::All);
+            break;
+        }
+
+        case IDM_OVERLAY_MODE: {
+            if (IsOverlayModeActive()) ExitOverlayMode(hwnd);
+            else EnterOverlayMode(hwnd);
             RequestRepaint(PaintLayer::All);
             break;
         }

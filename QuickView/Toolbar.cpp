@@ -46,6 +46,13 @@ Toolbar::Toolbar() {
       {ToolbarButtonID::AnimPlayPause, Icons::Play, {}, true, false},
       {ToolbarButtonID::AnimNextFrame, Icons::SkipFwd, {}, true, false},
       {ToolbarButtonID::AnimDirtyRect, Icons::Diagnostic, {}, true, false},
+      // Overlay mode buttons (hidden in normal mode)
+      {ToolbarButtonID::OverlayAlphaUp,     Icons::ChevronUp,    {}, true, false},
+      {ToolbarButtonID::OverlayAlphaDown,   Icons::ChevronDown,  {}, true, false},
+      {ToolbarButtonID::OverlayZoomIn,      Icons::ZoomIn,       {}, true, false},
+      {ToolbarButtonID::OverlayZoomOut,     Icons::ZoomOut,      {}, true, false},
+      {ToolbarButtonID::OverlayPassthrough, Icons::Eye,          {}, true, false},
+      {ToolbarButtonID::OverlayExit,        Icons::ExitToolbar,  {}, true, false},
       // Pin at the very end
       {ToolbarButtonID::Pin, Icons::Pin, {}, true, false},
   };
@@ -148,11 +155,30 @@ void Toolbar::UpdateLayout(float winW, float winH) {
     return false;
   };
 
+  auto isOverlayButton = [](ToolbarButtonID id) {
+    switch (id) {
+    case ToolbarButtonID::OverlayAlphaUp:
+    case ToolbarButtonID::OverlayAlphaDown:
+    case ToolbarButtonID::OverlayZoomIn:
+    case ToolbarButtonID::OverlayZoomOut:
+    case ToolbarButtonID::OverlayPassthrough:
+    case ToolbarButtonID::OverlayExit:
+      return true;
+    default:
+      return false;
+    }
+  };
+
   auto isNormalButton = [&](ToolbarButtonID id) {
     return !isCompareButton(id) && id != ToolbarButtonID::AnimPlayPause && id != ToolbarButtonID::AnimPrevFrame && id != ToolbarButtonID::AnimNextFrame && id != ToolbarButtonID::AnimDirtyRect && !isAlwaysVisible(id);
   };
 
   auto isVisibleButton = [&](const ToolbarButton &btn) {
+    if (m_overlayMode) {
+      if (isOverlayButton(btn.id)) return true;
+      if (isAlwaysVisible(btn.id)) return true;
+      return false;
+    }
     if (m_animMode) {
       if (btn.id == ToolbarButtonID::AnimDirtyRect) return g_config.ShowDirtyRectButton;
       if (btn.id == ToolbarButtonID::Prev || btn.id == ToolbarButtonID::Next || btn.id == ToolbarButtonID::Exif || btn.id == ToolbarButtonID::LockSize) return true;
@@ -358,6 +384,18 @@ const wchar_t *GetTooltipText(const ToolbarButton &btn) {
     return AppStrings::Toolbar_Tooltip_AnimNext;
   case ToolbarButtonID::AnimDirtyRect:
     return btn.isToggled ? AppStrings::Toolbar_Tooltip_AnimDirtyOn : AppStrings::Toolbar_Tooltip_AnimDirtyOff;
+  case ToolbarButtonID::OverlayAlphaUp:
+    return L"Increase Opacity";
+  case ToolbarButtonID::OverlayAlphaDown:
+    return L"Decrease Opacity";
+  case ToolbarButtonID::OverlayZoomIn:
+    return L"Zoom In";
+  case ToolbarButtonID::OverlayZoomOut:
+    return L"Zoom Out";
+  case ToolbarButtonID::OverlayPassthrough:
+    return btn.isToggled ? L"Disable Click-Through" : L"Enable Click-Through";
+  case ToolbarButtonID::OverlayExit:
+    return L"Exit Overlay Mode";
   default:
     return nullptr;
   }
@@ -978,6 +1016,10 @@ void Toolbar::SetCompareRawState(bool anyRaw, bool selectedIsRaw, bool isFullDec
       if (selectedIsRaw) { btn.isToggled = isFullDecode; }
     }
   }
+}
+
+void Toolbar::SetOverlayMode(bool enabled) {
+  m_overlayMode = enabled;
 }
 
 void Toolbar::SetAnimationMode(bool enabled, bool playing, bool dirtyRect, bool supportsDirtyRect) {

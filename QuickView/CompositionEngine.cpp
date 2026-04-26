@@ -1124,6 +1124,24 @@ D2D1_MATRIX_3X2_F CompositionEngine::GetScreenTransform() const {
 }
 
 // ============================================================================
+// [Overlay Mode] Root Visual Opacity Control
+// ============================================================================
+// Uses DComp native SetOpacity() on the root visual.
+// NEVER use SetLayeredWindowAttributes() with DComp — it breaks Independent Flip.
+HRESULT CompositionEngine::SetRootOpacity(float opacity) {
+    if (!m_rootVisual) return E_FAIL;
+    
+    opacity = std::clamp(opacity, 0.0f, 1.0f);
+    m_rootOpacity = opacity;
+    
+    ComPtr<IDCompositionVisual3> v3;
+    HRESULT hr = m_rootVisual.As(&v3);
+    if (FAILED(hr)) return hr;
+    
+    return v3->SetOpacity(opacity);
+}
+
+// ============================================================================
 // Background Management
 // ============================================================================
 HRESULT CompositionEngine::UpdateBackground(float width, float height, const D2D1_COLOR_F& bgColor, bool showGrid) {

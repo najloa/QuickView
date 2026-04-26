@@ -72,6 +72,13 @@ enum class MouseAction {
     None, WindowDrag, PanImage, ExitApp, FitWindow
 };
 
+// Overlay (Tracing) Mode state machine
+enum class OverlayState {
+    Normal,                 // Standard image viewing
+    Overlay_Interactive,    // Transparent + topmost, mouse still operates on image
+    Overlay_Passthrough     // Transparent + topmost, mouse clicks pass through to underlying windows
+};
+
 enum class ColorSpaceMode {
     Unmanaged = 0,
     Auto = 1,
@@ -461,6 +468,11 @@ struct RuntimeConfig {
     bool EnableSoftProofing = false;
     std::wstring SoftProofProfilePath; // Currently active proofing ICC path
     bool ShowGamutWarningOverlay = false;
+
+    // Overlay (Tracing) Mode
+    OverlayState OverlayModeState = OverlayState::Normal;
+    BYTE OverlayAlpha = 128;           // Current opacity (0-255), default ~50%
+    bool WasAlwaysOnTopBeforeOverlay = false; // Restore topmost state on exit
 
     // Verification Flags (Phase 5)
     bool EnableScout = true;
