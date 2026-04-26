@@ -276,6 +276,86 @@ void CSComposeGainMap(uint3 id : SV_DispatchThreadID)
 }
 )";
 
+static const char* HLSL_GamutAnalytic = R"(
+Texture2D<float4> SrcTex : register(t0);
+Texture1D<float> SrcTrcR : register(t1);
+Texture1D<float> SrcTrcG : register(t2);
+Texture1D<float> SrcTrcB : register(t3);
+RWTexture2D<uint> MaskTex : register(u0);
+
+cbuffer GamutAnalyticParams : register(b0)
+{
+    float4 SrcToXyz0;
+    float4 SrcToXyz1;
+    float4 SrcToXyz2;
+    float4 XyzToDst0;
+    float4 XyzToDst1;
+    float4 XyzToDst2;
+    float Epsilon;
+    uint TrcEntries;
+    uint Width;
+    uint Height;
+};
+
+[numthreads(8, 8, 1)]
+void CSGamutAnalytic(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= Width || id.y >= Height) {
+        return;
+    }
+
+    float4 encoded = SrcTex[id.xy];
+    uint lastIndex = (TrcEntries > 0) ? (TrcEntries - 1) : 0;
+    uint idxR = min((uint)round(saturate(encoded.r) * lastIndex), lastIndex);
+    uint idxG = min((uint)round(saturate(encoded.g) * lastIndex), lastIndex);
+    uint idxB = min((uint)round(saturate(encoded.b) * lastIndex), lastIndex);
+
+    float r = SrcTrcR.Load(idxR);
+    float g = SrcTrcG.Load(idxG);
+    float b = SrcTrcB.Load(idxB);
+
+    float X = dot(SrcToXyz0.xyz, float3(r, g, b));
+    float Y = dot(SrcToXyz1.xyz, float3(r, g, b));
+    float Z = dot(SrcToXyz2.xyz, float3(r, g, b));
+
+    float dr = dot(XyzToDst0.xyz, float3(X, Y, Z));
+    float dg = dot(XyzToDst1.xyz, float3(X, Y, Z));
+    float db = dot(XyzToDst2.xyz, float3(X, Y, Z));
+
+    bool overflow =
+        dr < -Epsilon || dg < -Epsilon || db < -Epsilon ||
+        dr > (1.0 + Epsilon) || dg > (1.0 + Epsilon) || db > (1.0 + Epsilon);
+    MaskTex[id.xy] = overflow ? 255u : 0u;
+}
+)";
+
+static const char* HLSL_GamutLut = R"(
+Texture2D<float4> SrcTex : register(t0);
+Texture3D<float> OverflowLut : register(t1);
+RWTexture2D<uint> MaskTex : register(u0);
+SamplerState LinearSampler : register(s0);
+
+cbuffer GamutLutParams : register(b0)
+{
+    float Epsilon;
+    uint Width;
+    uint Height;
+    uint LutEdge;
+};
+
+[numthreads(8, 8, 1)]
+void CSGamutLut(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= Width || id.y >= Height) {
+        return;
+    }
+
+    float3 encoded = saturate(SrcTex[id.xy].rgb);
+    float overflow = OverflowLut.SampleLevel(LinearSampler, encoded, 0);
+    MaskTex[id.xy] = (overflow > Epsilon) ? 255u : 0u;
+}
+)";
+
 HRESULT ComputeEngine::Initialize(ID3D11Device* pDevice) {
     if (!pDevice) return E_INVALIDARG;
     m_d3dDevice = pDevice;
@@ -346,6 +426,30 @@ HRESULT ComputeEngine::CompileShaders() {
     hr = m_d3dDevice->CreateComputeShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &m_csComposeGainMap);
     if (FAILED(hr)) return hr;
 
+    // 6. Gamut analytic dispatch
+    blob.Reset(); errorBlob.Reset();
+    hr = D3DCompile(HLSL_GamutAnalytic, strlen(HLSL_GamutAnalytic), nullptr, nullptr, nullptr, "CSGamutAnalytic", "cs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &blob, &errorBlob);
+    if (FAILED(hr)) {
+        if (errorBlob) {
+            QV_LOG("Shader_Error", TraceLoggingString((char*)errorBlob->GetBufferPointer(), "Message"));
+        }
+        return hr;
+    }
+    hr = m_d3dDevice->CreateComputeShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &m_csGamutAnalytic);
+    if (FAILED(hr)) return hr;
+
+    // 7. Gamut LUT dispatch
+    blob.Reset(); errorBlob.Reset();
+    hr = D3DCompile(HLSL_GamutLut, strlen(HLSL_GamutLut), nullptr, nullptr, nullptr, "CSGamutLut", "cs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &blob, &errorBlob);
+    if (FAILED(hr)) {
+        if (errorBlob) {
+            QV_LOG("Shader_Error", TraceLoggingString((char*)errorBlob->GetBufferPointer(), "Message"));
+        }
+        return hr;
+    }
+    hr = m_d3dDevice->CreateComputeShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &m_csGamutLut);
+    if (FAILED(hr)) return hr;
+
     // Constant Buffers
     D3D11_BUFFER_DESC cbDesc = {};
     cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
@@ -360,6 +464,14 @@ HRESULT ComputeEngine::CompileShaders() {
     hr = m_d3dDevice->CreateBuffer(&cbDesc, nullptr, &m_gainMapConstantBuffer);
     if (FAILED(hr)) return hr;
 
+    cbDesc.ByteWidth = sizeof(GamutAnalyticParams);
+    hr = m_d3dDevice->CreateBuffer(&cbDesc, nullptr, &m_gamutAnalyticConstantBuffer);
+    if (FAILED(hr)) return hr;
+
+    cbDesc.ByteWidth = 16;
+    hr = m_d3dDevice->CreateBuffer(&cbDesc, nullptr, &m_gamutLutConstantBuffer);
+    if (FAILED(hr)) return hr;
+
     // Linear sampler for bilinear gain map interpolation
     D3D11_SAMPLER_DESC sampDesc = {};
     sampDesc.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
@@ -367,7 +479,10 @@ HRESULT ComputeEngine::CompileShaders() {
     sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
     sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
     hr = m_d3dDevice->CreateSamplerState(&sampDesc, &m_linearSampler);
-    
+    if (FAILED(hr)) return hr;
+
+    sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    hr = m_d3dDevice->CreateSamplerState(&sampDesc, &m_pointSampler);
     return hr;
 }
 
@@ -470,6 +585,266 @@ HRESULT ComputeEngine::GenerateMips(ID3D11Texture2D* pTexture) {
     ID3D11ShaderResourceView* nullSRV[] = { nullptr };
     m_d3dContext->CSSetShaderResources(0, 1, nullSRV);
     return S_OK;
+}
+
+HRESULT ComputeEngine::Upload3DLut(const float* rgbValues, int edge, ID3D11Texture3D** outTexture) {
+    if (!m_valid || !rgbValues || edge <= 1 || !outTexture) return E_INVALIDARG;
+
+    D3D11_TEXTURE3D_DESC desc = {};
+    desc.Width = static_cast<UINT>(edge);
+    desc.Height = static_cast<UINT>(edge);
+    desc.Depth = static_cast<UINT>(edge);
+    desc.MipLevels = 1;
+    desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    std::vector<uint16_t> packed(static_cast<size_t>(edge) * edge * edge * 4, 0);
+    auto floatToHalf = [](float value) -> uint16_t {
+        uint32_t bits = 0;
+        memcpy(&bits, &value, sizeof(bits));
+        uint32_t sign = (bits >> 16) & 0x8000;
+        uint32_t mantissa = bits & 0x007fffff;
+        int exp = ((bits >> 23) & 0xff) - 127 + 15;
+        if (exp <= 0) return static_cast<uint16_t>(sign);
+        if (exp >= 31) return static_cast<uint16_t>(sign | 0x7c00);
+        return static_cast<uint16_t>(sign | (exp << 10) | (mantissa >> 13));
+    };
+
+    const size_t voxelCount = static_cast<size_t>(edge) * edge * edge;
+    for (size_t i = 0; i < voxelCount; ++i) {
+        packed[i * 4 + 0] = floatToHalf(rgbValues[i * 3 + 0]);
+        packed[i * 4 + 1] = floatToHalf(rgbValues[i * 3 + 1]);
+        packed[i * 4 + 2] = floatToHalf(rgbValues[i * 3 + 2]);
+        packed[i * 4 + 3] = floatToHalf(1.0f);
+    }
+
+    D3D11_SUBRESOURCE_DATA initData = {};
+    initData.pSysMem = packed.data();
+    initData.SysMemPitch = static_cast<UINT>(edge * sizeof(uint16_t) * 4);
+    initData.SysMemSlicePitch = static_cast<UINT>(edge * edge * sizeof(uint16_t) * 4);
+
+    ComPtr<ID3D11Texture3D> texture;
+    HRESULT hr = m_d3dDevice->CreateTexture3D(&desc, &initData, &texture);
+    if (FAILED(hr)) return hr;
+    *outTexture = texture.Detach();
+    return S_OK;
+}
+
+HRESULT ComputeEngine::UploadOverflowLut(const uint8_t* values, int edge, ID3D11Texture3D** outTexture) {
+    if (!m_valid || !values || edge <= 1 || !outTexture) return E_INVALIDARG;
+
+    D3D11_TEXTURE3D_DESC desc = {};
+    desc.Width = static_cast<UINT>(edge);
+    desc.Height = static_cast<UINT>(edge);
+    desc.Depth = static_cast<UINT>(edge);
+    desc.MipLevels = 1;
+    desc.Format = DXGI_FORMAT_R8_UNORM;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    D3D11_SUBRESOURCE_DATA initData = {};
+    initData.pSysMem = values;
+    initData.SysMemPitch = static_cast<UINT>(edge);
+    initData.SysMemSlicePitch = static_cast<UINT>(edge * edge);
+
+    ComPtr<ID3D11Texture3D> texture;
+    HRESULT hr = m_d3dDevice->CreateTexture3D(&desc, &initData, &texture);
+    if (FAILED(hr)) return hr;
+    *outTexture = texture.Detach();
+    return S_OK;
+}
+
+HRESULT ComputeEngine::CreateTrcTexture1D(const float* values, int entries, ID3D11ShaderResourceView** outSrv) {
+    if (!m_valid || !values || entries <= 0 || !outSrv) return E_INVALIDARG;
+
+    D3D11_TEXTURE1D_DESC desc = {};
+    desc.Width = static_cast<UINT>(entries);
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R32_FLOAT;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    D3D11_SUBRESOURCE_DATA initData = {};
+    initData.pSysMem = values;
+    initData.SysMemPitch = static_cast<UINT>(entries * sizeof(float));
+
+    ComPtr<ID3D11Texture1D> texture;
+    HRESULT hr = m_d3dDevice->CreateTexture1D(&desc, &initData, &texture);
+    if (FAILED(hr)) return hr;
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = desc.Format;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE1D;
+    srvDesc.Texture1D.MostDetailedMip = 0;
+    srvDesc.Texture1D.MipLevels = 1;
+
+    return m_d3dDevice->CreateShaderResourceView(texture.Get(), &srvDesc, outSrv);
+}
+
+HRESULT ComputeEngine::ReadbackMaskTexture(ID3D11Texture2D* maskTexture, GamutMaskReadback* outReadback) {
+    if (!maskTexture || !outReadback) return E_INVALIDARG;
+
+    D3D11_TEXTURE2D_DESC desc = {};
+    maskTexture->GetDesc(&desc);
+
+    D3D11_TEXTURE2D_DESC stagingDesc = desc;
+    stagingDesc.Usage = D3D11_USAGE_STAGING;
+    stagingDesc.BindFlags = 0;
+    stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    stagingDesc.MiscFlags = 0;
+
+    ComPtr<ID3D11Texture2D> staging;
+    HRESULT hr = m_d3dDevice->CreateTexture2D(&stagingDesc, nullptr, &staging);
+    if (FAILED(hr)) return hr;
+
+    m_d3dContext->CopyResource(staging.Get(), maskTexture);
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    hr = m_d3dContext->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &mapped);
+    if (FAILED(hr)) return hr;
+
+    outReadback->width = static_cast<int>(desc.Width);
+    outReadback->height = static_cast<int>(desc.Height);
+    outReadback->mask.assign(static_cast<size_t>(desc.Width) * desc.Height, 0);
+    outReadback->hasOverflow = false;
+
+    for (UINT y = 0; y < desc.Height; ++y) {
+        const auto* row = reinterpret_cast<const uint32_t*>(
+            static_cast<const uint8_t*>(mapped.pData) + static_cast<size_t>(y) * mapped.RowPitch);
+        for (UINT x = 0; x < desc.Width; ++x) {
+            const uint8_t value = row[x] ? 255 : 0;
+            outReadback->mask[static_cast<size_t>(y) * desc.Width + x] = value;
+            outReadback->hasOverflow |= value != 0;
+        }
+    }
+
+    m_d3dContext->Unmap(staging.Get(), 0);
+    return S_OK;
+}
+
+HRESULT ComputeEngine::DispatchGamutMaskAnalytic(
+    ID3D11Texture2D* srcTexture,
+    ID3D11ShaderResourceView* srcTrcR,
+    ID3D11ShaderResourceView* srcTrcG,
+    ID3D11ShaderResourceView* srcTrcB,
+    const GamutAnalyticParams& params,
+    GamutMaskReadback* outReadback) {
+    if (!m_valid || !srcTexture || !srcTrcR || !srcTrcG || !srcTrcB || !outReadback) {
+        return E_INVALIDARG;
+    }
+
+    ComPtr<ID3D11ShaderResourceView> srcSrv;
+    HRESULT hr = m_d3dDevice->CreateShaderResourceView(srcTexture, nullptr, &srcSrv);
+    if (FAILED(hr)) return hr;
+
+    D3D11_TEXTURE2D_DESC maskDesc = {};
+    maskDesc.Width = params.width;
+    maskDesc.Height = params.height;
+    maskDesc.MipLevels = 1;
+    maskDesc.ArraySize = 1;
+    maskDesc.Format = DXGI_FORMAT_R32_UINT;
+    maskDesc.SampleDesc.Count = 1;
+    maskDesc.Usage = D3D11_USAGE_DEFAULT;
+    maskDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+
+    ComPtr<ID3D11Texture2D> maskTexture;
+    hr = m_d3dDevice->CreateTexture2D(&maskDesc, nullptr, &maskTexture);
+    if (FAILED(hr)) return hr;
+
+    ComPtr<ID3D11UnorderedAccessView> maskUav;
+    hr = m_d3dDevice->CreateUnorderedAccessView(maskTexture.Get(), nullptr, &maskUav);
+    if (FAILED(hr)) return hr;
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    hr = m_d3dContext->Map(m_gamutAnalyticConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    if (FAILED(hr)) return hr;
+    memcpy(mapped.pData, &params, sizeof(params));
+    m_d3dContext->Unmap(m_gamutAnalyticConstantBuffer.Get(), 0);
+
+    m_d3dContext->CSSetShader(m_csGamutAnalytic.Get(), nullptr, 0);
+    ID3D11ShaderResourceView* srvs[] = { srcSrv.Get(), srcTrcR, srcTrcG, srcTrcB };
+    m_d3dContext->CSSetShaderResources(0, 4, srvs);
+    ID3D11UnorderedAccessView* uavs[] = { maskUav.Get() };
+    m_d3dContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
+    ID3D11Buffer* cbs[] = { m_gamutAnalyticConstantBuffer.Get() };
+    m_d3dContext->CSSetConstantBuffers(0, 1, cbs);
+    m_d3dContext->Dispatch((params.width + 7) / 8, (params.height + 7) / 8, 1);
+
+    ID3D11UnorderedAccessView* nullUav[] = { nullptr };
+    m_d3dContext->CSSetUnorderedAccessViews(0, 1, nullUav, nullptr);
+    ID3D11ShaderResourceView* nullSrvs[] = { nullptr, nullptr, nullptr, nullptr };
+    m_d3dContext->CSSetShaderResources(0, 4, nullSrvs);
+
+    return ReadbackMaskTexture(maskTexture.Get(), outReadback);
+}
+
+HRESULT ComputeEngine::DispatchGamutMaskLut(
+    ID3D11Texture2D* srcTexture,
+    ID3D11ShaderResourceView* overflowLut,
+    int lutEdge,
+    float epsilon,
+    GamutMaskReadback* outReadback) {
+    if (!m_valid || !srcTexture || !overflowLut || lutEdge <= 1 || !outReadback) {
+        return E_INVALIDARG;
+    }
+
+    D3D11_TEXTURE2D_DESC srcDesc = {};
+    srcTexture->GetDesc(&srcDesc);
+
+    ComPtr<ID3D11ShaderResourceView> srcSrv;
+    HRESULT hr = m_d3dDevice->CreateShaderResourceView(srcTexture, nullptr, &srcSrv);
+    if (FAILED(hr)) return hr;
+
+    D3D11_TEXTURE2D_DESC maskDesc = {};
+    maskDesc.Width = srcDesc.Width;
+    maskDesc.Height = srcDesc.Height;
+    maskDesc.MipLevels = 1;
+    maskDesc.ArraySize = 1;
+    maskDesc.Format = DXGI_FORMAT_R32_UINT;
+    maskDesc.SampleDesc.Count = 1;
+    maskDesc.Usage = D3D11_USAGE_DEFAULT;
+    maskDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+
+    ComPtr<ID3D11Texture2D> maskTexture;
+    hr = m_d3dDevice->CreateTexture2D(&maskDesc, nullptr, &maskTexture);
+    if (FAILED(hr)) return hr;
+
+    ComPtr<ID3D11UnorderedAccessView> maskUav;
+    hr = m_d3dDevice->CreateUnorderedAccessView(maskTexture.Get(), nullptr, &maskUav);
+    if (FAILED(hr)) return hr;
+
+    struct LutParams {
+        float epsilon;
+        uint32_t width;
+        uint32_t height;
+        uint32_t lutEdge;
+    } params = { epsilon, srcDesc.Width, srcDesc.Height, static_cast<uint32_t>(lutEdge) };
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    hr = m_d3dContext->Map(m_gamutLutConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    if (FAILED(hr)) return hr;
+    memcpy(mapped.pData, &params, sizeof(params));
+    m_d3dContext->Unmap(m_gamutLutConstantBuffer.Get(), 0);
+
+    m_d3dContext->CSSetShader(m_csGamutLut.Get(), nullptr, 0);
+    ID3D11ShaderResourceView* srvs[] = { srcSrv.Get(), overflowLut };
+    m_d3dContext->CSSetShaderResources(0, 2, srvs);
+    ID3D11UnorderedAccessView* uavs[] = { maskUav.Get() };
+    m_d3dContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
+    ID3D11Buffer* cbs[] = { m_gamutLutConstantBuffer.Get() };
+    m_d3dContext->CSSetConstantBuffers(0, 1, cbs);
+    ID3D11SamplerState* samplers[] = { m_linearSampler.Get() };
+    m_d3dContext->CSSetSamplers(0, 1, samplers);
+    m_d3dContext->Dispatch((srcDesc.Width + 7) / 8, (srcDesc.Height + 7) / 8, 1);
+
+    ID3D11UnorderedAccessView* nullUav[] = { nullptr };
+    m_d3dContext->CSSetUnorderedAccessViews(0, 1, nullUav, nullptr);
+    ID3D11ShaderResourceView* nullSrvs[] = { nullptr, nullptr };
+    m_d3dContext->CSSetShaderResources(0, 2, nullSrvs);
+
+    return ReadbackMaskTexture(maskTexture.Get(), outReadback);
 }
 
 HRESULT ComputeEngine::ToneMapHdrToSdr(const uint8_t* srcPixels, int width, int height, int stride, const ToneMapSettings& settings, ID3D11Texture2D** outTexture) {

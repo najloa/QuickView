@@ -29,16 +29,37 @@ struct ColorContextCacheKey {
 /// Manages D3D11/D2D Devices and shared resources for DirectComposition.
 /// </summary>
 class CRenderEngine {
-private:
-    std::map<ColorContextCacheKey, Microsoft::WRL::ComPtr<ID2D1ColorContext>> m_colorContextCache;
-    std::mutex m_cacheMutex;
 public:
+    struct GamutProgram;
+
+    enum class GamutTargetKind : uint8_t {
+        ScreenTarget = 0,
+        ProofTarget
+    };
+
+    enum class DisplayProfilePolicy : uint8_t {
+        PreferActualIcc = 0,
+        PreferSyntheticWideGamut,
+        SyntheticOnly
+    };
+
+    enum class GamutBackendKind : uint8_t {
+        Unknown = 0,
+        AnalyticMatrixTrc,
+        Lut3DCompiled,
+        CpuReferenceFallback
+    };
+
     struct GamutWarningAnalysisOptions {
         QuickView::DisplayColorState displayState;
+        GamutTargetKind targetKind = GamutTargetKind::ScreenTarget;
+        DisplayProfilePolicy displayProfilePolicy = DisplayProfilePolicy::PreferActualIcc;
         bool enableSoftProofing = false;
         std::wstring softProofProfilePath;
         int effectiveCmsMode = 1;
         int renderingIntent = 1;
+        bool allowGpuLutFallback = true;
+        bool acmAware = false;
     };
 
     struct GamutWarningAnalysisResult {
@@ -48,6 +69,8 @@ public:
         int rows = 0;
         std::vector<uint8_t> mask;
         bool hasOverflow = false;
+        GamutBackendKind backendKind = GamutBackendKind::Unknown;
+        std::wstring debugSummary;
     };
 
     CRenderEngine() = default;
@@ -115,6 +138,10 @@ public:
     ID2D1DeviceContext* GetDeviceContext() const { return m_d2dContext.Get(); }
 
 private:
+    std::map<ColorContextCacheKey, Microsoft::WRL::ComPtr<ID2D1ColorContext>> m_colorContextCache;
+    std::mutex m_cacheMutex;
+    mutable std::unordered_map<size_t, std::shared_ptr<GamutProgram>> m_gamutProgramCache;
+    mutable std::mutex m_gamutProgramCacheMutex;
     HRESULT CreateDeviceResources();
     HRESULT ResolveSourceColorContext(const QuickView::RawImageFrame& frame,
                                       int effectiveCmsMode,

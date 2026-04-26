@@ -506,6 +506,7 @@ struct GamutWarningOverlayState {
 
 GamutWarningOverlayState g_gamutWarningOverlay;
 float g_gamutWarningFlashOpacity = 1.0f;
+std::wstring g_gamutWarningDebugSummary;
 
 static std::mutex g_gamutWarningMutex;
 static GamutWarningAnalysisRequest g_gamutWarningRequest;
@@ -1211,6 +1212,7 @@ static void ClearGamutWarningState(HWND hwnd) {
         std::scoped_lock lock(g_gamutWarningMutex);
         g_gamutWarningOverlay = {};
         g_gamutWarningRequest = {};
+        g_gamutWarningDebugSummary.clear();
     }
     g_runtime.ShowGamutWarningOverlay = false;
     g_gamutWarningFlashActive = false;
@@ -1250,9 +1252,15 @@ static void ScheduleGamutWarningAnalysisImpl(HWND hwnd) {
             analyzed.rows = exactResult.rows;
             analyzed.mask = std::move(exactResult.mask);
             analyzed.hasOverflow = exactResult.hasOverflow;
+            {
+                std::scoped_lock lock(g_gamutWarningMutex);
+                g_gamutWarningDebugSummary = exactResult.debugSummary;
+            }
         }
         if (hr != S_OK && request.frame) {
             analyzed = AnalyzeGamutWarning(BuildGamutWarningSample(*request.frame));
+            std::scoped_lock lock(g_gamutWarningMutex);
+            g_gamutWarningDebugSummary = L"Gamut CPU fallback";
         }
         if (jobId != g_gamutWarningJobId.load()) return;
         {
@@ -7357,6 +7365,17 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
         RECT rc{}; GetClientRect(hwnd, &rc);
         g_toolbar.UpdateLayout((float)rc.right, (float)rc.bottom);
+        if (g_showDebugHUD) {
+            std::wstring debugOsd;
+            {
+                std::scoped_lock lock(g_gamutWarningMutex);
+                debugOsd = g_gamutWarningDebugSummary;
+            }
+            if (!debugOsd.empty()) {
+                g_osd.Show(hwnd, debugOsd, false, true,
+                           D2D1::ColorF(0.95f, 0.78f, 0.18f, 1.0f));
+            }
+        }
         RequestRepaint(PaintLayer::Static | PaintLayer::Dynamic);
         return 0;
     }
@@ -11100,6 +11119,19 @@ void ProcessEngineEvents(HWND hwnd) {
                         g_gamutWarningRequest.options.effectiveCmsMode =
                             g_runtime.GetEffectiveCmsMode(g_config.ColorManagement);
                         g_gamutWarningRequest.options.renderingIntent = g_config.CmsRenderingIntent;
+                        g_gamutWarningRequest.options.targetKind =
+                            (g_runtime.EnableSoftProofing && !g_runtime.SoftProofProfilePath.empty())
+                                ? CRenderEngine::GamutTargetKind::ProofTarget
+                                : CRenderEngine::GamutTargetKind::ScreenTarget;
+                        g_gamutWarningRequest.options.displayProfilePolicy =
+                            gamutAnalysisDisplayState.advancedColorActive ||
+                                    gamutAnalysisDisplayState.wideColorActive
+                                ? CRenderEngine::DisplayProfilePolicy::SyntheticOnly
+                                : CRenderEngine::DisplayProfilePolicy::PreferActualIcc;
+                        g_gamutWarningRequest.options.allowGpuLutFallback = true;
+                        g_gamutWarningRequest.options.acmAware =
+                            gamutAnalysisDisplayState.advancedColorActive ||
+                            gamutAnalysisDisplayState.wideColorActive;
                     }
                     ScheduleGamutWarningAnalysis(hwnd);
                 } else {

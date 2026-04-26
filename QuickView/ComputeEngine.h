@@ -18,6 +18,23 @@ struct ToneMapSettings {
     int toneMappingMode = 0;
 };
 
+struct GamutAnalyticParams {
+    float srcToXyz[12] = {};
+    float xyzToDst[12] = {};
+    float epsilon = 0.005f;
+    uint32_t trcEntries = 0;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t _pad0 = 0;
+};
+
+struct GamutMaskReadback {
+    int width = 0;
+    int height = 0;
+    std::vector<uint8_t> mask;
+    bool hasOverflow = false;
+};
+
 // ============================================================================
 // ComputeEngine - GPU Acceleration for Image Processing
 // ============================================================================
@@ -42,6 +59,7 @@ public:
     /// Available Compute Capability Check
     /// </summary>
     bool IsAvailable() const { return m_valid; }
+    ID3D11Device* GetD3DDevice() const { return m_d3dDevice.Get(); }
 
     // ========================================================================
     // Compute Operations
@@ -101,6 +119,23 @@ public:
     /// </summary>
     HRESULT GenerateMips(ID3D11Texture2D* pTexture);
 
+    HRESULT Upload3DLut(const float* rgbValues, int edge, ID3D11Texture3D** outTexture);
+    HRESULT UploadOverflowLut(const uint8_t* values, int edge, ID3D11Texture3D** outTexture);
+    HRESULT DispatchGamutMaskAnalytic(
+        ID3D11Texture2D* srcTexture,
+        ID3D11ShaderResourceView* srcTrcR,
+        ID3D11ShaderResourceView* srcTrcG,
+        ID3D11ShaderResourceView* srcTrcB,
+        const GamutAnalyticParams& params,
+        GamutMaskReadback* outReadback);
+    HRESULT DispatchGamutMaskLut(
+        ID3D11Texture2D* srcTexture,
+        ID3D11ShaderResourceView* overflowLut,
+        int lutEdge,
+        float epsilon,
+        GamutMaskReadback* outReadback);
+    HRESULT CreateTrcTexture1D(const float* values, int entries, ID3D11ShaderResourceView** outSrv);
+
 private:
     ComPtr<ID3D11Device> m_d3dDevice;
     ComPtr<ID3D11DeviceContext> m_d3dContext;
@@ -112,13 +147,19 @@ private:
     ComPtr<ID3D11ComputeShader> m_csToneMapHdrToSdr;
     ComPtr<ID3D11ComputeShader> m_csToneMapHdrToHdr;
     ComPtr<ID3D11ComputeShader> m_csComposeGainMap;
+    ComPtr<ID3D11ComputeShader> m_csGamutAnalytic;
+    ComPtr<ID3D11ComputeShader> m_csGamutLut;
 
     ComPtr<ID3D11Buffer> m_toneMapConstantBuffer;
     ComPtr<ID3D11Buffer> m_gainMapConstantBuffer;
+    ComPtr<ID3D11Buffer> m_gamutAnalyticConstantBuffer;
+    ComPtr<ID3D11Buffer> m_gamutLutConstantBuffer;
     ComPtr<ID3D11SamplerState> m_linearSampler;
+    ComPtr<ID3D11SamplerState> m_pointSampler;
 
     // Helper: Compile Embedded Shaders
     HRESULT CompileShaders();
+    HRESULT ReadbackMaskTexture(ID3D11Texture2D* maskTexture, GamutMaskReadback* outReadback);
 };
 
 } // namespace QuickView

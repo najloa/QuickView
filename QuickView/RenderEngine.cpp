@@ -4,7 +4,9 @@
 #include <mutex>
 #include <vector>
 #include <algorithm>
+#include <array>
 #include <fstream>
+#include <sstream>
 #include "RenderEngine.h"
 #include "QuickViewETW.h"
 static constexpr const char* CURRENT_MODULE = "RenderEngine";
@@ -21,9 +23,36 @@ static constexpr const char* CURRENT_MODULE = "RenderEngine";
 #pragma comment(lib, "mscms.lib")
 #include "resource.h"
 #include <icm.h>
+#include <lcms2.h>
 
 
 extern AppConfig g_config;
+
+struct CRenderEngine::GamutProgram {
+  struct AnalyticData {
+    std::array<float, 9> srcToXyz = {};
+    std::array<float, 9> xyzToDst = {};
+    std::vector<float> trcR;
+    std::vector<float> trcG;
+    std::vector<float> trcB;
+    ComPtr<ID3D11ShaderResourceView> trcSrvR;
+    ComPtr<ID3D11ShaderResourceView> trcSrvG;
+    ComPtr<ID3D11ShaderResourceView> trcSrvB;
+  };
+
+  struct LutData {
+    int edge = 0;
+    std::vector<uint8_t> overflowLut;
+    ComPtr<ID3D11Texture3D> overflowTexture;
+    ComPtr<ID3D11ShaderResourceView> overflowSrv;
+  };
+
+  GamutBackendKind backend = GamutBackendKind::Unknown;
+  std::wstring srcName;
+  std::wstring dstName;
+  AnalyticData analytic;
+  LutData lut;
+};
 
 namespace {
 template <typename T>
@@ -182,6 +211,174 @@ bool BuildSrgbProfileBytes(std::vector<uint8_t> *outBytes) {
 }
 
 bool TryLoadProfileBytesForPrimaries(QuickView::ColorPrimaries primaries,
+                                     std::vector<uint8_t> *outBytes);
+
+size_t HashBytes(size_t seed, const void* data, size_t size) {
+  const auto* bytes = static_cast<const uint8_t*>(data);
+  size_t hash = seed ? seed : 1469598103934665603ull;
+  for (size_t i = 0; i < size; ++i) {
+    hash ^= static_cast<size_t>(bytes[i]);
+    hash *= 1099511628211ull;
+  }
+  return hash;
+}
+
+size_t HashWString(size_t seed, const std::wstring& value) {
+  return HashBytes(seed, value.data(), value.size() * sizeof(wchar_t));
+}
+
+std::wstring ToLowerCopy(std::wstring value) {
+  std::transform(value.begin(), value.end(), value.begin(), towlower);
+  return value;
+}
+
+bool IsGenericSrgbProfilePath(const std::wstring& path) {
+  const std::wstring lower = ToLowerCopy(path);
+  return lower.find(L"srgb color space profile.icm") != std::wstring::npos;
+}
+
+std::wstring DescribeLcmsProfile(cmsHPROFILE profile, const wchar_t* fallback) {
+  if (!profile) {
+    return fallback ? fallback : L"Unknown";
+  }
+  char buffer[256] = {};
+  if (cmsGetProfileInfoASCII(profile, cmsInfoDescription, "en", "US",
+                             buffer, static_cast<cmsUInt32Number>(sizeof(buffer))) > 0 &&
+      buffer[0] != '\0') {
+    const int size = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, nullptr, 0);
+    if (size > 1) {
+      std::wstring wide(size - 1, L'\0');
+      MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wide.data(), size);
+      return wide;
+    }
+  }
+  return fallback ? fallback : L"Unknown";
+}
+
+struct ScopedCmsProfile {
+  cmsHPROFILE handle = nullptr;
+  ~ScopedCmsProfile() {
+    if (handle) cmsCloseProfile(handle);
+  }
+  void Reset(cmsHPROFILE next = nullptr) {
+    if (handle) cmsCloseProfile(handle);
+    handle = next;
+  }
+};
+
+struct ScopedCmsTransform {
+  cmsHTRANSFORM handle = nullptr;
+  ~ScopedCmsTransform() {
+    if (handle) cmsDeleteTransform(handle);
+  }
+  void Reset(cmsHTRANSFORM next = nullptr) {
+    if (handle) cmsDeleteTransform(handle);
+    handle = next;
+  }
+};
+
+struct ProfileBlob {
+  std::vector<uint8_t> bytes;
+  std::wstring name;
+};
+
+struct Matrix3 {
+  float m[3][3];
+};
+
+bool InvertMatrix3(const Matrix3& in, Matrix3* out) {
+  if (!out) return false;
+  const float a = in.m[0][0], b = in.m[0][1], c = in.m[0][2];
+  const float d = in.m[1][0], e = in.m[1][1], f = in.m[1][2];
+  const float g = in.m[2][0], h = in.m[2][1], i = in.m[2][2];
+  const float A = e * i - f * h;
+  const float B = -(d * i - f * g);
+  const float C = d * h - e * g;
+  const float D = -(b * i - c * h);
+  const float E = a * i - c * g;
+  const float F = -(a * h - b * g);
+  const float G = b * f - c * e;
+  const float H = -(a * f - c * d);
+  const float I = a * e - b * d;
+  const float det = a * A + b * B + c * C;
+  if (fabsf(det) < 1e-8f) return false;
+  const float inv = 1.0f / det;
+  *out = {{{A * inv, D * inv, G * inv},
+           {B * inv, E * inv, H * inv},
+           {C * inv, F * inv, I * inv}}};
+  return true;
+}
+
+bool BuildSyntheticDisplayProfile(const QuickView::DisplayColorState& displayState,
+                                  ProfileBlob* outBlob) {
+  if (!outBlob || !displayState.HasChromaticities()) return false;
+  cmsToneCurve* curves[3] = {
+      cmsBuildGamma(nullptr, 2.2),
+      cmsBuildGamma(nullptr, 2.2),
+      cmsBuildGamma(nullptr, 2.2),
+  };
+  if (!curves[0] || !curves[1] || !curves[2]) {
+    cmsFreeToneCurveTriple(curves);
+    return false;
+  }
+
+  cmsCIExyY white = { displayState.whitePoint[0], displayState.whitePoint[1], 1.0 };
+  cmsCIExyYTRIPLE primaries = {};
+  primaries.Red.x = displayState.redPrimary[0];
+  primaries.Red.y = displayState.redPrimary[1];
+  primaries.Red.Y = 1.0;
+  primaries.Green.x = displayState.greenPrimary[0];
+  primaries.Green.y = displayState.greenPrimary[1];
+  primaries.Green.Y = 1.0;
+  primaries.Blue.x = displayState.bluePrimary[0];
+  primaries.Blue.y = displayState.bluePrimary[1];
+  primaries.Blue.Y = 1.0;
+
+  ScopedCmsProfile profile;
+  profile.Reset(cmsCreateRGBProfile(&white, &primaries, curves));
+  cmsFreeToneCurveTriple(curves);
+  if (!profile.handle) return false;
+
+  cmsUInt32Number bytesNeeded = 0;
+  if (!cmsSaveProfileToMem(profile.handle, nullptr, &bytesNeeded) || bytesNeeded == 0) {
+    return false;
+  }
+  outBlob->bytes.resize(bytesNeeded);
+  if (!cmsSaveProfileToMem(profile.handle, outBlob->bytes.data(), &bytesNeeded)) {
+    outBlob->bytes.clear();
+    return false;
+  }
+  outBlob->name = L"Synthetic Display RGB";
+  return true;
+}
+
+bool BuildProfileBlobForPrimaries(QuickView::ColorPrimaries primaries, ProfileBlob* outBlob) {
+  if (!outBlob) return false;
+  outBlob->bytes.clear();
+  outBlob->name.clear();
+  if (!TryLoadProfileBytesForPrimaries(primaries, &outBlob->bytes)) {
+    return false;
+  }
+  switch (primaries) {
+  case QuickView::ColorPrimaries::DisplayP3:
+    outBlob->name = L"Display P3";
+    break;
+  case QuickView::ColorPrimaries::AdobeRGB:
+    outBlob->name = L"Adobe RGB";
+    break;
+  case QuickView::ColorPrimaries::ProPhotoRGB:
+    outBlob->name = L"ProPhoto RGB";
+    break;
+  case QuickView::ColorPrimaries::SRGB:
+  case QuickView::ColorPrimaries::Unknown:
+  default:
+    outBlob->name = L"sRGB";
+    break;
+  }
+  return !outBlob->bytes.empty();
+}
+
+bool TryLoadProfileBytesForPrimaries(QuickView::ColorPrimaries primaries,
                                      std::vector<uint8_t> *outBytes) {
   if (!outBytes)
     return false;
@@ -265,6 +462,7 @@ QuickView::ColorPrimaries ResolveFrameProfilePrimaries(
 }
 
 bool BuildGamutCheckSampleFrame(const QuickView::RawImageFrame &frame,
+                                int maxDimension,
                                 QuickView::RawImageFrame *outSample,
                                 int *outCols, int *outRows) {
   if (!outSample || !outCols || !outRows || !frame.IsValid() || !frame.pixels ||
@@ -278,9 +476,15 @@ bool BuildGamutCheckSampleFrame(const QuickView::RawImageFrame &frame,
   }
 
   outSample->Release();
-  outSample->format = QuickView::PixelFormat::BGRX8888;
-  outSample->width = std::clamp(frame.width / 16, 48, 256);
-  outSample->height = std::clamp(frame.height / 16, 48, 256);
+  outSample->format = QuickView::PixelFormat::RGBA8888;
+  const int safeMaxDim = std::clamp(maxDimension, 48, 1024);
+  const float scale =
+      static_cast<float>(safeMaxDim) /
+      static_cast<float>((std::max)(frame.width, frame.height));
+  outSample->width =
+      (frame.width > safeMaxDim) ? (std::max)(48, static_cast<int>(frame.width * scale)) : frame.width;
+  outSample->height =
+      (frame.height > safeMaxDim) ? (std::max)(48, static_cast<int>(frame.height * scale)) : frame.height;
   outSample->stride = outSample->width * 4;
   outSample->iccProfile = frame.iccProfile;
   outSample->colorInfo = frame.colorInfo;
@@ -317,16 +521,16 @@ bool BuildGamutCheckSampleFrame(const QuickView::RawImageFrame &frame,
       switch (frame.format) {
       case QuickView::PixelFormat::BGRA8888:
       case QuickView::PixelFormat::BGRX8888:
-        dst[0] = src[0];
-        dst[1] = src[1];
-        dst[2] = src[2];
-        dst[3] = 0;
-        break;
-      case QuickView::PixelFormat::RGBA8888:
         dst[0] = src[2];
         dst[1] = src[1];
         dst[2] = src[0];
-        dst[3] = 0;
+        dst[3] = 255;
+        break;
+      case QuickView::PixelFormat::RGBA8888:
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst[2] = src[2];
+        dst[3] = 255;
         break;
       default:
         outSample->Release();
@@ -583,6 +787,234 @@ BuildToneMapSettings(const QuickView::RawImageFrame &frame,
 
   return settings;
 }
+
+bool OpenCmsProfileFromBlob(const ProfileBlob& blob, ScopedCmsProfile* outProfile) {
+  if (!outProfile || blob.bytes.empty()) return false;
+  outProfile->Reset(cmsOpenProfileFromMem(blob.bytes.data(),
+                                          static_cast<cmsUInt32Number>(blob.bytes.size())));
+  return outProfile->handle != nullptr;
+}
+
+bool ResolveSourceProfileBlob(const QuickView::RawImageFrame& frame,
+                              int effectiveCmsMode,
+                              ProfileBlob* outBlob) {
+  if (!outBlob) return false;
+  outBlob->bytes.clear();
+  outBlob->name.clear();
+
+  if (effectiveCmsMode == 2) {
+    return BuildProfileBlobForPrimaries(QuickView::ColorPrimaries::SRGB, outBlob);
+  }
+  if (effectiveCmsMode == 3) {
+    return BuildProfileBlobForPrimaries(QuickView::ColorPrimaries::DisplayP3, outBlob);
+  }
+  if (effectiveCmsMode == 4) {
+    return BuildProfileBlobForPrimaries(QuickView::ColorPrimaries::AdobeRGB, outBlob);
+  }
+  if (effectiveCmsMode == 6) {
+    return BuildProfileBlobForPrimaries(QuickView::ColorPrimaries::ProPhotoRGB, outBlob);
+  }
+
+  if (!frame.iccProfile.empty()) {
+    outBlob->bytes = frame.iccProfile;
+    outBlob->name = L"Embedded ICC";
+    return true;
+  }
+
+  return BuildProfileBlobForPrimaries(ResolveFrameProfilePrimaries(frame), outBlob);
+}
+
+bool ResolveTargetProfileBlob(const CRenderEngine::GamutWarningAnalysisOptions& options,
+                              ProfileBlob* outBlob) {
+  if (!outBlob) return false;
+  outBlob->bytes.clear();
+  outBlob->name.clear();
+
+  if (options.targetKind == CRenderEngine::GamutTargetKind::ProofTarget &&
+      options.enableSoftProofing && !options.softProofProfilePath.empty()) {
+    std::ifstream stream(options.softProofProfilePath, std::ios::binary);
+    if (!stream) return false;
+    stream.seekg(0, std::ios::end);
+    const std::streamoff size = stream.tellg();
+    if (size <= 0) return false;
+    outBlob->bytes.resize(static_cast<size_t>(size));
+    stream.seekg(0, std::ios::beg);
+    stream.read(reinterpret_cast<char*>(outBlob->bytes.data()), size);
+    outBlob->name = options.softProofProfilePath.substr(
+        options.softProofProfilePath.find_last_of(L"\\/") == std::wstring::npos
+            ? 0
+            : options.softProofProfilePath.find_last_of(L"\\/") + 1);
+    return !outBlob->bytes.empty();
+  }
+
+  std::wstring monitorProfilePath;
+  const bool preferSynthetic =
+      options.acmAware ||
+      options.displayProfilePolicy == CRenderEngine::DisplayProfilePolicy::SyntheticOnly ||
+      options.displayProfilePolicy == CRenderEngine::DisplayProfilePolicy::PreferSyntheticWideGamut;
+  if (!preferSynthetic &&
+      TryGetMonitorProfilePath(options.displayState, &monitorProfilePath) &&
+      !monitorProfilePath.empty() &&
+      !IsGenericSrgbProfilePath(monitorProfilePath)) {
+    std::ifstream stream(monitorProfilePath, std::ios::binary);
+    if (stream) {
+      stream.seekg(0, std::ios::end);
+      const std::streamoff size = stream.tellg();
+      if (size > 0) {
+        outBlob->bytes.resize(static_cast<size_t>(size));
+        stream.seekg(0, std::ios::beg);
+        stream.read(reinterpret_cast<char*>(outBlob->bytes.data()), size);
+        outBlob->name = monitorProfilePath.substr(
+            monitorProfilePath.find_last_of(L"\\/") == std::wstring::npos
+                ? 0
+                : monitorProfilePath.find_last_of(L"\\/") + 1);
+        return !outBlob->bytes.empty();
+      }
+    }
+  }
+
+  if (BuildSyntheticDisplayProfile(options.displayState, outBlob)) {
+    return true;
+  }
+
+  return BuildProfileBlobForPrimaries(QuickView::ColorPrimaries::SRGB, outBlob);
+}
+
+bool ExtractMatrixShaperProgram(cmsHPROFILE srcProfile,
+                                cmsHPROFILE dstProfile,
+                                QuickView::ComputeEngine* computeEngine,
+                                CRenderEngine::GamutProgram* program) {
+  if (!srcProfile || !dstProfile || !computeEngine || !program) return false;
+  if (!cmsIsMatrixShaper(srcProfile) || !cmsIsMatrixShaper(dstProfile)) return false;
+  if (cmsChannelsOfColorSpace(cmsGetColorSpace(srcProfile)) != 3 ||
+      cmsChannelsOfColorSpace(cmsGetColorSpace(dstProfile)) != 3) {
+    return false;
+  }
+
+  const auto* srcR = static_cast<const cmsCIEXYZ*>(cmsReadTag(srcProfile, cmsSigRedColorantTag));
+  const auto* srcG = static_cast<const cmsCIEXYZ*>(cmsReadTag(srcProfile, cmsSigGreenColorantTag));
+  const auto* srcB = static_cast<const cmsCIEXYZ*>(cmsReadTag(srcProfile, cmsSigBlueColorantTag));
+  const auto* dstR = static_cast<const cmsCIEXYZ*>(cmsReadTag(dstProfile, cmsSigRedColorantTag));
+  const auto* dstG = static_cast<const cmsCIEXYZ*>(cmsReadTag(dstProfile, cmsSigGreenColorantTag));
+  const auto* dstB = static_cast<const cmsCIEXYZ*>(cmsReadTag(dstProfile, cmsSigBlueColorantTag));
+  auto* trcR = static_cast<cmsToneCurve*>(cmsReadTag(srcProfile, cmsSigRedTRCTag));
+  auto* trcG = static_cast<cmsToneCurve*>(cmsReadTag(srcProfile, cmsSigGreenTRCTag));
+  auto* trcB = static_cast<cmsToneCurve*>(cmsReadTag(srcProfile, cmsSigBlueTRCTag));
+  if (!srcR || !srcG || !srcB || !dstR || !dstG || !dstB || !trcR || !trcG || !trcB) {
+    return false;
+  }
+
+  Matrix3 srcToXyz = {{{static_cast<float>(srcR->X), static_cast<float>(srcG->X), static_cast<float>(srcB->X)},
+                       {static_cast<float>(srcR->Y), static_cast<float>(srcG->Y), static_cast<float>(srcB->Y)},
+                       {static_cast<float>(srcR->Z), static_cast<float>(srcG->Z), static_cast<float>(srcB->Z)}}};
+  Matrix3 dstToXyz = {{{static_cast<float>(dstR->X), static_cast<float>(dstG->X), static_cast<float>(dstB->X)},
+                       {static_cast<float>(dstR->Y), static_cast<float>(dstG->Y), static_cast<float>(dstB->Y)},
+                       {static_cast<float>(dstR->Z), static_cast<float>(dstG->Z), static_cast<float>(dstB->Z)}}};
+  Matrix3 xyzToDst = {};
+  if (!InvertMatrix3(dstToXyz, &xyzToDst)) return false;
+
+  constexpr int kTrcEntries = 1024;
+  program->analytic.trcR.resize(kTrcEntries);
+  program->analytic.trcG.resize(kTrcEntries);
+  program->analytic.trcB.resize(kTrcEntries);
+  for (int i = 0; i < kTrcEntries; ++i) {
+    const float t = static_cast<float>(i) / static_cast<float>(kTrcEntries - 1);
+    program->analytic.trcR[i] = cmsEvalToneCurveFloat(trcR, t);
+    program->analytic.trcG[i] = cmsEvalToneCurveFloat(trcG, t);
+    program->analytic.trcB[i] = cmsEvalToneCurveFloat(trcB, t);
+  }
+
+  memcpy(program->analytic.srcToXyz.data(), &srcToXyz.m[0][0], sizeof(float) * 9);
+  memcpy(program->analytic.xyzToDst.data(), &xyzToDst.m[0][0], sizeof(float) * 9);
+
+  if (FAILED(computeEngine->CreateTrcTexture1D(program->analytic.trcR.data(), kTrcEntries,
+                                               &program->analytic.trcSrvR)) ||
+      FAILED(computeEngine->CreateTrcTexture1D(program->analytic.trcG.data(), kTrcEntries,
+                                               &program->analytic.trcSrvG)) ||
+      FAILED(computeEngine->CreateTrcTexture1D(program->analytic.trcB.data(), kTrcEntries,
+                                               &program->analytic.trcSrvB))) {
+    return false;
+  }
+
+  program->backend = CRenderEngine::GamutBackendKind::AnalyticMatrixTrc;
+  return true;
+}
+
+bool BuildLutProgram(cmsHPROFILE srcProfile,
+                     cmsHPROFILE dstProfile,
+                     int renderingIntent,
+                     QuickView::ComputeEngine* computeEngine,
+                     CRenderEngine::GamutProgram* program) {
+  if (!srcProfile || !dstProfile || !computeEngine || !program) return false;
+
+  constexpr int kEdge = 33;
+  const size_t voxelCount = static_cast<size_t>(kEdge) * kEdge * kEdge;
+  std::vector<cmsUInt16Number> input(voxelCount * 3);
+  for (int b = 0; b < kEdge; ++b) {
+    for (int g = 0; g < kEdge; ++g) {
+      for (int r = 0; r < kEdge; ++r) {
+        const size_t idx = static_cast<size_t>((b * kEdge + g) * kEdge + r);
+        input[idx * 3 + 0] = static_cast<cmsUInt16Number>((r * 65535) / (kEdge - 1));
+        input[idx * 3 + 1] = static_cast<cmsUInt16Number>((g * 65535) / (kEdge - 1));
+        input[idx * 3 + 2] = static_cast<cmsUInt16Number>((b * 65535) / (kEdge - 1));
+      }
+    }
+  }
+
+  ScopedCmsTransform standard;
+  standard.Reset(cmsCreateTransform(srcProfile, TYPE_RGB_16, dstProfile, TYPE_RGB_16,
+                                    renderingIntent, cmsFLAGS_HIGHRESPRECALC));
+  if (!standard.handle) return false;
+
+  ScopedCmsTransform gamut;
+  static std::mutex s_alarmMutex;
+  {
+    std::scoped_lock lock(s_alarmMutex);
+    const cmsUInt16Number alarm[cmsMAXCHANNELS] = { 0, 65535, 0 };
+    cmsSetAlarmCodes(alarm);
+    gamut.Reset(cmsCreateProofingTransform(
+        srcProfile, TYPE_RGB_16, dstProfile, TYPE_RGB_16, dstProfile,
+        renderingIntent, renderingIntent,
+        cmsFLAGS_SOFTPROOFING | cmsFLAGS_GAMUTCHECK | cmsFLAGS_HIGHRESPRECALC));
+  }
+  if (!gamut.handle) return false;
+
+  std::vector<cmsUInt16Number> standardOut(voxelCount * 3);
+  std::vector<cmsUInt16Number> gamutOut(voxelCount * 3);
+  cmsDoTransform(standard.handle, input.data(), standardOut.data(),
+                 static_cast<cmsUInt32Number>(voxelCount));
+  cmsDoTransform(gamut.handle, input.data(), gamutOut.data(),
+                 static_cast<cmsUInt32Number>(voxelCount));
+
+  program->lut.edge = kEdge;
+  program->lut.overflowLut.assign(voxelCount, 0);
+  for (size_t i = 0; i < voxelCount; ++i) {
+    const size_t base = i * 3;
+    const bool overflow =
+        standardOut[base + 0] != gamutOut[base + 0] ||
+        standardOut[base + 1] != gamutOut[base + 1] ||
+        standardOut[base + 2] != gamutOut[base + 2];
+    program->lut.overflowLut[i] = overflow ? 255 : 0;
+  }
+
+  if (FAILED(computeEngine->UploadOverflowLut(program->lut.overflowLut.data(), kEdge,
+                                              &program->lut.overflowTexture))) {
+    return false;
+  }
+
+  D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+  srvDesc.Format = DXGI_FORMAT_R8_UNORM;
+  srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE3D;
+  srvDesc.Texture3D.MostDetailedMip = 0;
+  srvDesc.Texture3D.MipLevels = 1;
+  if (FAILED(computeEngine->GetD3DDevice()->CreateShaderResourceView(
+          program->lut.overflowTexture.Get(), &srvDesc, &program->lut.overflowSrv))) {
+    return false;
+  }
+
+  program->backend = CRenderEngine::GamutBackendKind::Lut3DCompiled;
+  return true;
+}
 } // namespace
 
 float CRenderEngine::EstimateFramePeakScRgb(const QuickView::RawImageFrame &frame) {
@@ -604,133 +1036,143 @@ HRESULT CRenderEngine::AnalyzeGamutWarningIcc(
     return E_INVALIDARG;
   }
 
-  // A hard clipping warning is only meaningful in relative colorimetric mode.
-  if (options.renderingIntent != 1) {
-    return S_OK;
-  }
-
-  // Windows can expose a synthetic or generic display ICC that does not
-  // describe the panel's real gamut. For screen-gamut warnings, prefer the
-  // caller's display-primaries approximation path instead of a misleading ICC
-  // transform. Keep the exact ICC path for explicit soft proofing only.
-  if (!options.enableSoftProofing || options.softProofProfilePath.empty()) {
+  if (options.renderingIntent != 1 || !m_computeEngine || !m_computeEngine->IsAvailable()) {
     return S_FALSE;
   }
 
-  QuickView::RawImageFrame sampledFrame;
-  if (!BuildGamutCheckSampleFrame(frame, &sampledFrame, &outResult->cols,
-                                  &outResult->rows)) {
+  ProfileBlob srcBlob;
+  ProfileBlob dstBlob;
+  if (!ResolveSourceProfileBlob(frame, options.effectiveCmsMode, &srcBlob) ||
+      !ResolveTargetProfileBlob(options, &dstBlob)) {
     return S_FALSE;
   }
 
-  ScopedColorProfile srcProfile;
-  ScopedColorProfile dstProfile;
-  std::vector<uint8_t> profileBytes;
+  size_t key = 0;
+  key = HashBytes(key, srcBlob.bytes.data(), srcBlob.bytes.size());
+  key = HashBytes(key, dstBlob.bytes.data(), dstBlob.bytes.size());
+  key = HashBytes(key, &options.renderingIntent, sizeof(options.renderingIntent));
+  key = HashBytes(key, &options.targetKind, sizeof(options.targetKind));
+  key = HashBytes(key, &options.acmAware, sizeof(options.acmAware));
+  key = HashWString(key, options.displayState.gdiDeviceName);
 
-  auto openPrimariesProfile = [&](QuickView::ColorPrimaries primaries,
-                                  ScopedColorProfile *outProfile) -> bool {
-    if (!outProfile)
-      return false;
-    if (primaries == QuickView::ColorPrimaries::SRGB ||
-        primaries == QuickView::ColorPrimaries::Unknown) {
-      DWORD pathLen = 0;
-      if (!GetStandardColorSpaceProfileW(nullptr, LCS_sRGB, nullptr, &pathLen) ||
-          pathLen == 0) {
-        return false;
-      }
-      std::wstring profilePath(pathLen, L'\0');
-      if (!GetStandardColorSpaceProfileW(nullptr, LCS_sRGB, profilePath.data(),
-                                         &pathLen) ||
-          pathLen == 0) {
-        return false;
-      }
-      profilePath.resize(wcsnlen(profilePath.c_str(), pathLen));
-      outProfile->Reset(OpenProfileFromPath(profilePath));
-      return outProfile->handle != nullptr;
+  std::shared_ptr<GamutProgram> program;
+  {
+    std::scoped_lock lock(m_gamutProgramCacheMutex);
+    auto it = m_gamutProgramCache.find(key);
+    if (it != m_gamutProgramCache.end()) {
+      program = it->second;
     }
-    profileBytes.clear();
-    if (!TryLoadProfileBytesForPrimaries(primaries, &profileBytes)) {
-      return false;
+  }
+
+  if (!program) {
+    auto compiled = std::make_shared<GamutProgram>();
+    ScopedCmsProfile srcProfile;
+    ScopedCmsProfile dstProfile;
+    if (!OpenCmsProfileFromBlob(srcBlob, &srcProfile) ||
+        !OpenCmsProfileFromBlob(dstBlob, &dstProfile)) {
+      return S_FALSE;
     }
-    outProfile->Reset(OpenProfileFromBytes(
-        profileBytes.data(), static_cast<DWORD>(profileBytes.size())));
-    return outProfile->handle != nullptr;
+
+    compiled->srcName = srcBlob.name.empty() ? DescribeLcmsProfile(srcProfile.handle, L"Source ICC") : srcBlob.name;
+    compiled->dstName = dstBlob.name.empty() ? DescribeLcmsProfile(dstProfile.handle, L"Target ICC") : dstBlob.name;
+
+    if (!ExtractMatrixShaperProgram(srcProfile.handle, dstProfile.handle, m_computeEngine.get(),
+                                    compiled.get())) {
+      if (!options.allowGpuLutFallback ||
+          !BuildLutProgram(srcProfile.handle, dstProfile.handle, options.renderingIntent,
+                           m_computeEngine.get(), compiled.get())) {
+        return S_FALSE;
+      }
+    }
+
+    {
+      std::scoped_lock lock(m_gamutProgramCacheMutex);
+      m_gamutProgramCache[key] = compiled;
+    }
+    program = std::move(compiled);
+  }
+
+  auto dispatchWithProgram = [&](int maxDimension,
+                                 QuickView::GamutMaskReadback* readback) -> HRESULT {
+    QuickView::RawImageFrame sampledFrame;
+    int cols = 0;
+    int rows = 0;
+    if (!BuildGamutCheckSampleFrame(frame, maxDimension, &sampledFrame, &cols, &rows)) {
+      return E_FAIL;
+    }
+
+    ComPtr<ID3D11Texture2D> srcTexture;
+    HRESULT hr = m_computeEngine->UploadAndConvert(sampledFrame.pixels, sampledFrame.width,
+                                                   sampledFrame.height, sampledFrame.format,
+                                                   &srcTexture);
+    if (FAILED(hr)) return hr;
+
+    if (program->backend == GamutBackendKind::AnalyticMatrixTrc) {
+      QuickView::GamutAnalyticParams params = {};
+      auto fillMatrix = [](const std::array<float, 9>& src, float dst[12]) {
+        memset(dst, 0, sizeof(float) * 12);
+        dst[0] = src[0]; dst[1] = src[1]; dst[2] = src[2];
+        dst[4] = src[3]; dst[5] = src[4]; dst[6] = src[5];
+        dst[8] = src[6]; dst[9] = src[7]; dst[10] = src[8];
+      };
+      fillMatrix(program->analytic.srcToXyz, params.srcToXyz);
+      fillMatrix(program->analytic.xyzToDst, params.xyzToDst);
+      params.epsilon = 0.005f;
+      params.trcEntries = static_cast<uint32_t>(program->analytic.trcR.size());
+      params.width = static_cast<uint32_t>(sampledFrame.width);
+      params.height = static_cast<uint32_t>(sampledFrame.height);
+      hr = m_computeEngine->DispatchGamutMaskAnalytic(
+          srcTexture.Get(),
+          program->analytic.trcSrvR.Get(),
+          program->analytic.trcSrvG.Get(),
+          program->analytic.trcSrvB.Get(),
+          params, readback);
+    } else {
+      hr = m_computeEngine->DispatchGamutMaskLut(
+          srcTexture.Get(), program->lut.overflowSrv.Get(),
+          program->lut.edge, 0.1f, readback);
+    }
+    return hr;
   };
 
-  const QuickView::ColorPrimaries framePrimaries =
-      ResolveFrameProfilePrimaries(frame);
-
-  if (options.effectiveCmsMode == 2) {
-    openPrimariesProfile(QuickView::ColorPrimaries::SRGB, &srcProfile);
-  } else if (options.effectiveCmsMode == 3) {
-    openPrimariesProfile(QuickView::ColorPrimaries::DisplayP3, &srcProfile);
-  } else if (options.effectiveCmsMode == 4) {
-    openPrimariesProfile(QuickView::ColorPrimaries::AdobeRGB, &srcProfile);
-  } else if (options.effectiveCmsMode == 6) {
-    openPrimariesProfile(QuickView::ColorPrimaries::ProPhotoRGB, &srcProfile);
-  } else if (!frame.iccProfile.empty()) {
-    srcProfile.Reset(OpenProfileFromBytes(frame.iccProfile.data(),
-                                          static_cast<DWORD>(frame.iccProfile.size())));
-  } else if (!openPrimariesProfile(framePrimaries, &srcProfile)) {
-    const int fallback = g_config.CmsDefaultFallback;
-    if (fallback == 1) {
-      openPrimariesProfile(QuickView::ColorPrimaries::DisplayP3, &srcProfile);
-    } else if (fallback == 2) {
-      openPrimariesProfile(QuickView::ColorPrimaries::AdobeRGB, &srcProfile);
-    } else if (fallback == 3) {
-      openPrimariesProfile(QuickView::ColorPrimaries::ProPhotoRGB, &srcProfile);
-    } else {
-      openPrimariesProfile(QuickView::ColorPrimaries::SRGB, &srcProfile);
-    }
+  QuickView::GamutMaskReadback coarse = {};
+  HRESULT hr = dispatchWithProgram(256, &coarse);
+  if (FAILED(hr)) {
+    return hr;
   }
 
-  if (options.enableSoftProofing && !options.softProofProfilePath.empty()) {
-    dstProfile.Reset(OpenProfileFromPath(options.softProofProfilePath));
+  outResult->backendKind = program->backend;
+  if (!coarse.hasOverflow) {
+    outResult->cols = coarse.width;
+    outResult->rows = coarse.height;
+    outResult->mask = std::move(coarse.mask);
+    outResult->hasOverflow = false;
   } else {
-    std::wstring monitorProfilePath;
-    if (TryGetMonitorProfilePath(options.displayState, &monitorProfilePath)) {
-      dstProfile.Reset(OpenProfileFromPath(monitorProfilePath));
+    QuickView::GamutMaskReadback fine = {};
+    hr = dispatchWithProgram(1024, &fine);
+    if (FAILED(hr)) {
+      return hr;
+    }
+    outResult->cols = fine.width;
+    outResult->rows = fine.height;
+    outResult->mask = std::move(fine.mask);
+    outResult->hasOverflow = fine.hasOverflow;
+    if (outResult->hasOverflow) {
+      DilateBinaryMask(outResult->mask, outResult->cols, outResult->rows);
     }
   }
-  if (!dstProfile.handle) {
-    openPrimariesProfile(QuickView::ColorPrimaries::SRGB, &dstProfile);
-  }
 
-  if (!srcProfile.handle || !dstProfile.handle) {
-    return S_FALSE;
-  }
-
-  HPROFILE profiles[] = {srcProfile.handle, dstProfile.handle};
-  DWORD intents[] = {INTENT_RELATIVE_COLORIMETRIC};
-  ScopedColorTransform transform;
-  DWORD transformFlags =
-      BEST_MODE | ENABLE_GAMUT_CHECKING | USE_RELATIVE_COLORIMETRIC;
-  transform.Reset(CreateMultiProfileTransform(profiles, 2, intents, 1,
-                                              transformFlags, 0));
-  if (!transform.handle) {
-    return S_FALSE;
-  }
-
-  outResult->mask.assign(
-      static_cast<size_t>(outResult->cols * outResult->rows), 0);
-  if (!CheckBitmapBits(transform.handle, sampledFrame.pixels, BM_xRGBQUADS,
-                       static_cast<DWORD>(sampledFrame.width),
-                       static_cast<DWORD>(sampledFrame.height),
-                       static_cast<DWORD>(sampledFrame.stride),
-                       outResult->mask.data(), nullptr, 0)) {
-    const DWORD lastError = GetLastError();
-    return HRESULT_FROM_WIN32(lastError != 0 ? lastError : ERROR_NOT_SUPPORTED);
-  }
-
-  for (uint8_t &entry : outResult->mask) {
-    entry = entry ? 255 : 0;
-    outResult->hasOverflow |= entry != 0;
-  }
-
-  if (outResult->hasOverflow) {
-    DilateBinaryMask(outResult->mask, outResult->cols, outResult->rows);
-  }
-
+  std::wstringstream summary;
+  summary << L"Gamut "
+          << (options.targetKind == GamutTargetKind::ProofTarget ? L"Proof" : L"Screen")
+          << L" / "
+          << (program->backend == GamutBackendKind::AnalyticMatrixTrc ? L"Analytic" :
+              (program->backend == GamutBackendKind::Lut3DCompiled ? L"LUT" : L"CPU"))
+          << L" / src=" << program->srcName
+          << L" / dst=" << program->dstName
+          << L" / ACM=" << (options.acmAware ? L"On" : L"Off")
+          << L" / mask=" << outResult->cols << L"x" << outResult->rows;
+  outResult->debugSummary = summary.str();
   return S_OK;
 }
 
