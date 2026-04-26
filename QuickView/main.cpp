@@ -683,6 +683,8 @@ static void AdjustOverlayAlpha(HWND hwnd, int delta);
 static bool IsOverlayModeActive();
 static bool IsPassthroughModeActive();
 static constexpr int HOTKEY_ID_EXIT_PASSTHROUGH = 0x0001;
+static constexpr int HOTKEY_ID_ALPHA_UP = 0x0002;
+static constexpr int HOTKEY_ID_ALPHA_DOWN = 0x0003;
 static void CaptureCurrentImageAsCompareLeft();
 static FireAndForget LoadImageIntoCompareLeftSlot(HWND hwnd, std::wstring path, std::function<void(bool)> callback = nullptr);
 static void ReloadComparePaneForDisplayChange(HWND hwnd, ComparePane pane);
@@ -2312,7 +2314,7 @@ static void EnterOverlayMode(HWND hwnd) {
 
     int percent = (int)(g_runtime.OverlayAlpha * 100.0f / 255.0f + 0.5f);
     wchar_t buf[64];
-    swprintf_s(buf, L"Overlay Mode: ON (%d%%)", percent);
+    swprintf_s(buf, L"%s: ON (%d%%)", AppStrings::OSD_OverlayModeOn, percent);
     g_osd.Show(hwnd, buf, false);
 
     InvalidateRect(hwnd, nullptr, FALSE);
@@ -2354,7 +2356,7 @@ static void ExitOverlayMode(HWND hwnd) {
     SyncDCompState(hwnd, (float)bgRc.right, (float)bgRc.bottom);
     g_compEngine->Commit();
 
-    g_osd.Show(hwnd, L"Overlay Mode: OFF", false);
+    g_osd.Show(hwnd, AppStrings::OSD_OverlayModeOff, false);
     InvalidateRect(hwnd, nullptr, FALSE);
 }
 
@@ -2373,7 +2375,7 @@ static void AdjustOverlayAlpha(HWND hwnd, int delta) {
 
     int percent = (int)(newAlpha * 100.0f / 255.0f + 0.5f);
     wchar_t buf[64];
-    swprintf_s(buf, L"Opacity: %d%%", percent);
+    swprintf_s(buf, L"%s: %d%%", AppStrings::OSD_Opacity, percent);
     g_osd.Show(hwnd, buf, true);
 
     InvalidateRect(hwnd, nullptr, FALSE);
@@ -2383,17 +2385,12 @@ static void EnterPassthroughMode(HWND hwnd) {
     if (!IsOverlayModeActive() || IsPassthroughModeActive()) return;
 
     // Show confirmation dialog using custom dialog system
-    std::vector<DialogButton> buttons = {
-        { DialogResult::Yes, L"Continue", true },
-        { DialogResult::Cancel, L"Cancel" }
-    };
+
     DialogResult result = ShowQuickViewDialog(hwnd,
-        L"QuickView - Click-Through Mode",
-        L"Click-through mode will make QuickView transparent to all mouse input.\n\n"
-        L"Press Shift+Esc or right-click QuickView on the taskbar to exit.\n\n"
-        L"Continue?",
+        AppStrings::Dialog_PassthroughTitle,
+        AppStrings::Dialog_PassthroughContent,
         D2D1::ColorF(D2D1::ColorF::DodgerBlue),
-        buttons);
+        { { DialogResult::Yes, AppStrings::Dialog_ButtonContinue, true }, { DialogResult::Cancel, AppStrings::Dialog_Cancel } });
 
     if (result != DialogResult::Yes) return;
 
@@ -2411,7 +2408,7 @@ static void EnterPassthroughMode(HWND hwnd) {
 
     g_runtime.OverlayModeState = OverlayState::Overlay_Passthrough;
 
-    g_osd.Show(hwnd, L"Click-Through: ON (Shift+Esc to exit)", false);
+    g_osd.Show(hwnd, AppStrings::OSD_PassthroughOn, false);
     InvalidateRect(hwnd, nullptr, FALSE);
 }
 
@@ -2426,6 +2423,7 @@ static void ExitPassthroughMode(HWND hwnd) {
     // Unregister global hotkey
     UnregisterHotKey(hwnd, HOTKEY_ID_EXIT_PASSTHROUGH);
 
+
     // Restore toolbar
     g_toolbar.SetVisible(true);
 
@@ -2434,7 +2432,7 @@ static void ExitPassthroughMode(HWND hwnd) {
     // Bring window back to foreground
     SetForegroundWindow(hwnd);
 
-    g_osd.Show(hwnd, L"Click-Through: OFF", false);
+    g_osd.Show(hwnd, AppStrings::OSD_PassthroughOff, false);
     InvalidateRect(hwnd, nullptr, FALSE);
 }
 
@@ -7367,6 +7365,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
         if (wParam == HOTKEY_ID_EXIT_PASSTHROUGH) {
             ExitPassthroughMode(hwnd);
             RequestRepaint(PaintLayer::All);
+        } else if (wParam == HOTKEY_ID_ALPHA_UP) {
+            AdjustOverlayAlpha(hwnd, 25);
+        } else if (wParam == HOTKEY_ID_ALPHA_DOWN) {
+            AdjustOverlayAlpha(hwnd, -25);
         }
         return 0;
     }
@@ -8990,7 +8992,6 @@ SKIP_EDGE_NAV:;
                     ExitCompareMode(hwnd);
                     RequestRepaint(PaintLayer::All);
                     break;
-                // Overlay mode buttons
                 case ToolbarButtonID::OverlayAlphaUp:
                     AdjustOverlayAlpha(hwnd, +25);
                     break;
@@ -9078,6 +9079,9 @@ SKIP_EDGE_NAV:;
                         float stepPercent = g_toolbar.GetCompareZoomStepPercent();
                         float stepDelta = (stepPercent / 10.0f) * (zoomIn ? 1.0f : -1.0f);
                         ApplyCompareZoomStep(hwnd, stepDelta, false);
+                    } else if (IsOverlayModeActive()) {
+                        const bool zoomIn = (tbId == ToolbarButtonID::CompareZoomIn);
+                        SendMessage(hwnd, WM_KEYDOWN, zoomIn ? VK_ADD : VK_SUBTRACT, 0);
                     }
                     break;
                 case ToolbarButtonID::CompareSyncZoom:

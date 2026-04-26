@@ -78,6 +78,7 @@ namespace GeekIcons {
     extern const VectorIcon MaximizeVector;        // 0xE922
     extern const VectorIcon RestoreVector;         // 0xE923
     extern const VectorIcon ContactVector;         // 0xE706
+    extern const VectorIcon PassthroughVector;     // 0xE962
 
     // --- Batch 1: UI Overlays & Settings ---
     extern const VectorIcon CloseVector;          // 0xE711
@@ -150,6 +151,7 @@ namespace GeekIcons {
     inline IconGlyph Maximize         = &MaximizeVector;
     inline IconGlyph Restore          = &RestoreVector;
     inline IconGlyph Contact          = &ContactVector;
+    inline IconGlyph Passthrough      = &PassthroughVector;
 
     // --- Aliases & Batch 1 Mapping ---
     inline IconGlyph Close            = &CancelVector;

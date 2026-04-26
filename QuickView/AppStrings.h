@@ -13,7 +13,8 @@ namespace AppStrings {
         Japanese = 4,
         Russian = 5,
         German = 6,
-        Spanish = 7
+        Spanish = 7,
+        French = 8
     };
 
     void Init();
@@ -43,6 +44,7 @@ namespace AppStrings {
     extern const wchar_t* Dialog_ButtonSave;
     extern const wchar_t* Dialog_ButtonSaveAs;
     extern const wchar_t* Dialog_ButtonDiscard;
+    extern const wchar_t* Dialog_ButtonContinue;
 
     // Context Menu
     extern const wchar_t* Context_Open;
@@ -85,10 +87,14 @@ namespace AppStrings {
     extern const wchar_t* Context_SortDescending;
     extern const wchar_t* Context_Settings;
     extern const wchar_t* Context_CompareMode; // New
+    extern const wchar_t* Context_OverlayMode;
     extern const wchar_t* Context_GalleryOpenCompare;
     extern const wchar_t* Context_GalleryOpenNewWindow;
     extern const wchar_t* Context_Exit;
     
+    // Taskbar / System Menu
+    extern const wchar_t* Menu_ExitPassthrough;
+
     // Messages
     extern const wchar_t* Message_SaveErrorTitle;
     extern const wchar_t* Message_SaveErrorContent;
@@ -108,6 +114,15 @@ namespace AppStrings {
     extern const wchar_t* Toolbar_Tooltip_FixExtension;
     extern const wchar_t* Toolbar_Tooltip_Pin;
     extern const wchar_t* Toolbar_Tooltip_Unpin;
+
+    // Overlay Mode Tooltips
+    extern const wchar_t* Toolbar_Tooltip_OverlayAlphaUp;
+    extern const wchar_t* Toolbar_Tooltip_OverlayAlphaDown;
+    extern const wchar_t* Toolbar_Tooltip_OverlayPassthroughOn;
+    extern const wchar_t* Toolbar_Tooltip_OverlayPassthroughOff;
+    extern const wchar_t* Toolbar_Tooltip_OverlayExit;
+    extern const wchar_t* Toolbar_Tooltip_OverlayZoomIn;
+    extern const wchar_t* Toolbar_Tooltip_OverlayZoomOut;
     extern const wchar_t* Toolbar_Tooltip_NormalMode;
     extern const wchar_t* Toolbar_Tooltip_CompareMode;
     extern const wchar_t* Toolbar_Tooltip_CompareOpen;
@@ -379,6 +394,15 @@ namespace AppStrings {
     extern const wchar_t* Dialog_ButtonStar;
     extern const wchar_t* Dialog_Update_LoveTitle;
     extern const wchar_t* Dialog_Update_LoveMessage;
+
+    // Passthrough Mode
+    extern const wchar_t* Dialog_PassthroughTitle;
+    extern const wchar_t* Dialog_PassthroughContent;
+    extern const wchar_t* OSD_PassthroughOn;
+    extern const wchar_t* OSD_PassthroughOff;
+    extern const wchar_t* OSD_OverlayModeOn;
+    extern const wchar_t* OSD_OverlayModeOff;
+    extern const wchar_t* OSD_Opacity;
 
     // Help Overlay
     extern const wchar_t* Help_Header_Shortcuts;

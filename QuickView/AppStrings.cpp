@@ -27,6 +27,7 @@ const wchar_t *Dialog_SaveContent = nullptr;
 const wchar_t *Dialog_ButtonSave = nullptr;
 const wchar_t *Dialog_ButtonSaveAs = nullptr;
 const wchar_t *Dialog_ButtonDiscard = nullptr;
+const wchar_t *Dialog_ButtonContinue = nullptr;
 
 const wchar_t *Checkbox_AlwaysSaveLossless = nullptr;
 const wchar_t *Checkbox_AlwaysSaveEdgeAdapted = nullptr;
@@ -108,9 +109,26 @@ const wchar_t *Context_SortDescending = nullptr;
 const wchar_t *Context_Settings = nullptr;
 
 const wchar_t *Context_CompareMode = nullptr; // New
+const wchar_t *Context_OverlayMode = nullptr;
 const wchar_t *Context_GalleryOpenCompare = nullptr;
 const wchar_t *Context_GalleryOpenNewWindow = nullptr;
 const wchar_t *Context_Exit = nullptr;
+
+const wchar_t *Menu_ExitPassthrough = nullptr;
+const wchar_t *Dialog_PassthroughTitle = nullptr;
+const wchar_t *Dialog_PassthroughContent = nullptr;
+const wchar_t *OSD_PassthroughOn = nullptr;
+const wchar_t *OSD_PassthroughOff = nullptr;
+const wchar_t *OSD_OverlayModeOn = nullptr;
+const wchar_t *OSD_OverlayModeOff = nullptr;
+const wchar_t *OSD_Opacity = nullptr;
+const wchar_t *Toolbar_Tooltip_OverlayZoomIn = nullptr;
+const wchar_t *Toolbar_Tooltip_OverlayZoomOut = nullptr;
+const wchar_t *Toolbar_Tooltip_OverlayAlphaUp = nullptr;
+const wchar_t *Toolbar_Tooltip_OverlayAlphaDown = nullptr;
+const wchar_t *Toolbar_Tooltip_OverlayPassthroughOn = nullptr;
+const wchar_t *Toolbar_Tooltip_OverlayPassthroughOff = nullptr;
+const wchar_t *Toolbar_Tooltip_OverlayExit = nullptr;
 
 const wchar_t *HUD_Label_High = nullptr;
 const wchar_t *HUD_Label_Low = nullptr;
@@ -451,6 +469,7 @@ const wchar_t *Settings_Action_ImportTheme = nullptr;
 // English Table (Source of Truth)
 // ----------------------------------------------------------------
 struct EN {
+  static constexpr const wchar_t *Context_OverlayMode = L"Overlay Mode\tCtrl+Shift+O";
   static constexpr const wchar_t *OSD_NoImage = L"No image loaded";
   static constexpr const wchar_t *OSD_Lossless = L"Lossless";
   static constexpr const wchar_t *OSD_ReencodedLossless =
@@ -476,6 +495,7 @@ struct EN {
   static constexpr const wchar_t *Dialog_ButtonSave = L"Save";
   static constexpr const wchar_t *Dialog_ButtonSaveAs = L"Save As...";
   static constexpr const wchar_t *Dialog_ButtonDiscard = L"Discard";
+  static constexpr const wchar_t *Dialog_ButtonContinue = L"Continue";
 
   static constexpr const wchar_t *Checkbox_AlwaysSaveLossless =
       L"Always save lossless transforms";
@@ -673,6 +693,21 @@ struct EN {
   static constexpr const wchar_t *Context_GalleryOpenNewWindow =
       L"Open in New Window";
   static constexpr const wchar_t *Context_Exit = L"Exit\tMButton/Esc";
+  static constexpr const wchar_t *Menu_ExitPassthrough = L"Exit Mouse Passthrough";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaUp = L"Increase Opacity";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaDown = L"Decrease Opacity";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOn = L"Enter Mouse Passthrough";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOff = L"Exit Mouse Passthrough";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayExit = L"Exit Overlay Mode";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomIn = L"Zoom In (Overlay)";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomOut = L"Zoom Out (Overlay)";
+  static constexpr const wchar_t *Dialog_PassthroughTitle = L"Mouse Passthrough Mode";
+  static constexpr const wchar_t *Dialog_PassthroughContent = L"Mouse events will pass through to the window below.\nOnly global hotkey (Shift+Esc) or taskbar menu can exit this mode.\n\nContinue?";
+  static constexpr const wchar_t *OSD_PassthroughOn = L"Click-Through: ON (Shift+Esc to exit)";
+  static constexpr const wchar_t *OSD_PassthroughOff = L"Click-Through: OFF";
+  static constexpr const wchar_t *OSD_OverlayModeOn = L"Overlay Mode: ON";
+  static constexpr const wchar_t *OSD_OverlayModeOff = L"Overlay Mode: OFF";
+  static constexpr const wchar_t *OSD_Opacity = L"Opacity";
 
   static constexpr const wchar_t *Settings_Tab_Visuals = L"Interface";
   static constexpr const wchar_t *Settings_Tab_Controls = L"Controls";
@@ -1028,6 +1063,7 @@ struct EN {
 // Simplified Chinese Table
 // ----------------------------------------------------------------
 struct CN {
+  static constexpr const wchar_t *Context_OverlayMode = L"临摹模式\tCtrl+Shift+O";
   static constexpr const wchar_t *OSD_NoImage = L"没有加载图片";
   static constexpr const wchar_t *OSD_Lossless = L"无损";
   static constexpr const wchar_t *OSD_ReencodedLossless = L"重编码 (无损)";
@@ -1052,6 +1088,7 @@ struct CN {
   static constexpr const wchar_t *Dialog_ButtonSave = L"保存";
   static constexpr const wchar_t *Dialog_ButtonSaveAs = L"另存为...";
   static constexpr const wchar_t *Dialog_ButtonDiscard = L"放弃";
+  static constexpr const wchar_t *Dialog_ButtonContinue = L"继续";
 
   static constexpr const wchar_t *Checkbox_AlwaysSaveLossless =
       L"总是保存无损变换";
@@ -1392,6 +1429,21 @@ struct CN {
   static constexpr const wchar_t *Context_GalleryOpenNewWindow =
       L"在新窗口中打开";
   static constexpr const wchar_t *Context_Exit = L"退出\tMButton/Esc";
+  static constexpr const wchar_t *Menu_ExitPassthrough = L"退出鼠标穿透";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaUp = L"增加不透明度";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaDown = L"减小不透明度";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOn = L"进入鼠标穿透";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOff = L"退出鼠标穿透";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayExit = L"退出临摹模式";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomIn = L"放大 (临摹)";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomOut = L"缩小 (临摹)";
+  static constexpr const wchar_t *Dialog_PassthroughTitle = L"鼠标穿透模式";
+  static constexpr const wchar_t *Dialog_PassthroughContent = L"鼠标操作将透传至底层窗口。\n只能通过全局快捷键 (Shift+Esc) 或任务栏菜单退出该模式。\n\n是否继续？";
+  static constexpr const wchar_t *OSD_PassthroughOn = L"鼠标穿透：开启 (Shift+Esc 退出)";
+  static constexpr const wchar_t *OSD_PassthroughOff = L"鼠标穿透：关闭";
+  static constexpr const wchar_t *OSD_OverlayModeOn = L"临摹模式：开启";
+  static constexpr const wchar_t *OSD_OverlayModeOff = L"临摹模式：关闭";
+  static constexpr const wchar_t *OSD_Opacity = L"不透明度";
 
   // Messages
   static constexpr const wchar_t *Message_SaveErrorTitle = L"错误";
@@ -1554,6 +1606,7 @@ struct CN {
 // Traditional Chinese Table
 // ----------------------------------------------------------------
 struct TW {
+  static constexpr const wchar_t *Context_OverlayMode = L"臨摹模式\tCtrl+Shift+O";
   static constexpr const wchar_t *OSD_NoImage = L"沒有載入圖片";
   static constexpr const wchar_t *OSD_Lossless = L"無損";
   static constexpr const wchar_t *OSD_ReencodedLossless = L"重新編碼 (無損)";
@@ -1576,6 +1629,7 @@ struct TW {
   static constexpr const wchar_t *Dialog_ButtonSave = L"儲存";
   static constexpr const wchar_t *Dialog_ButtonSaveAs = L"另存為...";
   static constexpr const wchar_t *Dialog_ButtonDiscard = L"放棄";
+  static constexpr const wchar_t *Dialog_ButtonContinue = L"繼續";
   static constexpr const wchar_t *Checkbox_AlwaysSaveLossless =
       L"總是儲存無損變換";
   static constexpr const wchar_t *Checkbox_AlwaysSaveEdgeAdapted =
@@ -1747,6 +1801,21 @@ struct TW {
   static constexpr const wchar_t *Context_GalleryOpenNewWindow =
       L"在新視窗中打開";
   static constexpr const wchar_t *Context_Exit = L"結束\tMButton/Esc";
+  static constexpr const wchar_t *Menu_ExitPassthrough = L"退出滑鼠穿透";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaUp = L"增加不透明度";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaDown = L"減小不透明度";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOn = L"進入滑鼠穿透";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOff = L"退出滑鼠穿透";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayExit = L"退出臨摹模式";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomIn = L"放大 (臨摹)";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomOut = L"縮小 (臨摹)";
+  static constexpr const wchar_t *Dialog_PassthroughTitle = L"滑鼠穿透模式";
+  static constexpr const wchar_t *Dialog_PassthroughContent = L"滑鼠操作將透傳至底層窗口。\n只能通過全局快捷鍵 (Shift+Esc) 或任務欄菜單退出該模式。\n\n是否繼續？";
+  static constexpr const wchar_t *OSD_PassthroughOn = L"滑鼠穿透：開啟 (Shift+Esc 退出)";
+  static constexpr const wchar_t *OSD_PassthroughOff = L"滑鼠穿透：關閉";
+  static constexpr const wchar_t *OSD_OverlayModeOn = L"臨摹模式：開啟";
+  static constexpr const wchar_t *OSD_OverlayModeOff = L"臨摹模式：關閉";
+  static constexpr const wchar_t *OSD_Opacity = L"不透明度";
   static constexpr const wchar_t *Settings_Tab_Visuals = L"界面";
   static constexpr const wchar_t *Settings_Tab_Controls = L"操作";
   static constexpr const wchar_t *Settings_Tab_Image = L"圖像";
@@ -2065,6 +2134,7 @@ struct TW {
 // Japanese Table
 // ----------------------------------------------------------------
 struct JA {
+  static constexpr const wchar_t *Context_OverlayMode = L"トレースモード\tCtrl+Shift+O";
   static constexpr const wchar_t *OSD_NoImage = L"画像が読み込まれていません";
   static constexpr const wchar_t *OSD_Lossless = L"ロスレス";
   static constexpr const wchar_t *OSD_ReencodedLossless =
@@ -2089,6 +2159,7 @@ struct JA {
   static constexpr const wchar_t *Dialog_ButtonSave = L"保存";
   static constexpr const wchar_t *Dialog_ButtonSaveAs = L"名前を付けて保存...";
   static constexpr const wchar_t *Dialog_ButtonDiscard = L"破棄";
+  static constexpr const wchar_t *Dialog_ButtonContinue = L"続行";
   static constexpr const wchar_t *Checkbox_AlwaysSaveLossless =
       L"ロスレス変換を常に保存";
   static constexpr const wchar_t *Checkbox_AlwaysSaveEdgeAdapted =
@@ -2276,6 +2347,21 @@ struct JA {
   static constexpr const wchar_t *Context_GalleryOpenNewWindow =
       L"新しいウィンドウで開く";
   static constexpr const wchar_t *Context_Exit = L"終了\tMButton/Esc";
+  static constexpr const wchar_t *Menu_ExitPassthrough = L"マウススルーを解除";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaUp = L"不透明度を上げる";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaDown = L"不透明度を下げる";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOn = L"マウススルーを開始";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOff = L"マウススルーを解除";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayExit = L"トレースモードを終了";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomIn = L"拡大 (トレース)";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomOut = L"縮小 (トレース)";
+  static constexpr const wchar_t *Dialog_PassthroughTitle = L"マウススルーモード";
+  static constexpr const wchar_t *Dialog_PassthroughContent = L"マウス操作が下のウィンドウに透過されます。\n解除するにはグローバルショートカット (Shift+Esc) またはタスクバーメニューを使用してください。\n\n続行しますか？";
+  static constexpr const wchar_t *OSD_PassthroughOn = L"マウスクリック透過: ON (Shift+Esc で解除)";
+  static constexpr const wchar_t *OSD_PassthroughOff = L"マウスクリック透過: OFF";
+  static constexpr const wchar_t *OSD_OverlayModeOn = L"トレースモード: ON";
+  static constexpr const wchar_t *OSD_OverlayModeOff = L"トレースモード: OFF";
+  static constexpr const wchar_t *OSD_Opacity = L"不透明度";
   static constexpr const wchar_t *Settings_Tab_Visuals = L"インターフェース";
   static constexpr const wchar_t *Settings_Tab_Controls = L"操作";
   static constexpr const wchar_t *Settings_Tab_Image = L"画像";
@@ -2608,6 +2694,7 @@ struct JA {
 // Russian Table
 // ----------------------------------------------------------------
 struct RU {
+  static constexpr const wchar_t *Context_OverlayMode = L"Режим кальки\tCtrl+Shift+O";
   static constexpr const wchar_t *OSD_NoImage = L"Изображение не загружено";
   static constexpr const wchar_t *OSD_Lossless = L"Без потерь";
   static constexpr const wchar_t *OSD_ReencodedLossless =
@@ -2633,6 +2720,7 @@ struct RU {
   static constexpr const wchar_t *Dialog_ButtonSave = L"Сохранить";
   static constexpr const wchar_t *Dialog_ButtonSaveAs = L"Сохранить как...";
   static constexpr const wchar_t *Dialog_ButtonDiscard = L"Отменить";
+  static constexpr const wchar_t *Dialog_ButtonContinue = L"Продолжить";
   
   static constexpr const wchar_t *Checkbox_AlwaysSaveLossless =
       L"Всегда сохранять без потерь";
@@ -2830,6 +2918,21 @@ struct RU {
   static constexpr const wchar_t *Context_GalleryOpenNewWindow =
       L"Открыть в новом окне";
   static constexpr const wchar_t *Context_Exit = L"Выход\tMButton/Esc";
+  static constexpr const wchar_t *Menu_ExitPassthrough = L"Выйти из режима сквозного клика";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaUp = L"Увеличить непрозрачность";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaDown = L"Уменьшить непрозрачность";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOn = L"Включить сквозной клик";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOff = L"Выключить сквозной клик";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayExit = L"Выйти из режима кальки";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomIn = L"Увеличить (калька)";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomOut = L"Уменьшить (калька)";
+  static constexpr const wchar_t *Dialog_PassthroughTitle = L"Режим сквозного клика";
+  static constexpr const wchar_t *Dialog_PassthroughContent = L"События мыши будут проходить сквозь окно.\nВыйти можно только через глобальный хоткей (Shift+Esc) или меню панели задач.\n\nПродолжить?";
+  static constexpr const wchar_t *OSD_PassthroughOn = L"Сквозной клик: ВКЛ (Shift+Esc для выхода)";
+  static constexpr const wchar_t *OSD_PassthroughOff = L"Сквозной клик: ВЫКЛ";
+  static constexpr const wchar_t *OSD_OverlayModeOn = L"Режим кальки: ВКЛ";
+  static constexpr const wchar_t *OSD_OverlayModeOff = L"Режим кальки: ВЫКЛ";
+  static constexpr const wchar_t *OSD_Opacity = L"Непрозрачность";
 
   static constexpr const wchar_t *Settings_Tab_Visuals = L"Интерфейс";
   static constexpr const wchar_t *Settings_Tab_Controls = L"Управление";
@@ -3186,6 +3289,7 @@ struct RU {
 // German Table
 // ----------------------------------------------------------------
 struct DE {
+  static constexpr const wchar_t *Context_OverlayMode = L"Pausmodus\tCtrl+Shift+O";
   static constexpr const wchar_t *OSD_NoImage = L"Kein Bild geladen";
   static constexpr const wchar_t *OSD_Lossless = L"Verlustfrei";
   static constexpr const wchar_t *OSD_ReencodedLossless =
@@ -3211,6 +3315,7 @@ struct DE {
   static constexpr const wchar_t *Dialog_ButtonSave = L"Speichern";
   static constexpr const wchar_t *Dialog_ButtonSaveAs = L"Speichern unter...";
   static constexpr const wchar_t *Dialog_ButtonDiscard = L"Verwerfen";
+  static constexpr const wchar_t *Dialog_ButtonContinue = L"Fortfahren";
   static constexpr const wchar_t *Checkbox_AlwaysSaveLossless =
       L"Immer verlustfrei speichern";
   static constexpr const wchar_t *Checkbox_AlwaysSaveEdgeAdapted =
@@ -3411,6 +3516,21 @@ struct DE {
   static constexpr const wchar_t *Context_GalleryOpenNewWindow =
       L"In neuem Fenster öffnen";
   static constexpr const wchar_t *Context_Exit = L"Beenden\tMButton/Esc";
+  static constexpr const wchar_t *Menu_ExitPassthrough = L"Maus-Passthrough beenden";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaUp = L"Deckkraft erhöhen";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaDown = L"Deckkraft verringern";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOn = L"Maus-Passthrough aktivieren";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOff = L"Maus-Passthrough deaktivieren";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayExit = L"Pausmodus beenden";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomIn = L"Vergrößern (Pause)";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomOut = L"Verkleinern (Pause)";
+  static constexpr const wchar_t *Dialog_PassthroughTitle = L"Maus-Passthrough-Modus";
+  static constexpr const wchar_t *Dialog_PassthroughContent = L"Mausereignisse werden an das darunterliegende Fenster weitergegeben.\nBeenden nur über globalen Hotkey (Shift+Esc) oder Taskleisten-Menü möglich.\n\nFortfahren?";
+  static constexpr const wchar_t *OSD_PassthroughOn = L"Durchklicken: AN (Shift+Esc zum Beenden)";
+  static constexpr const wchar_t *OSD_PassthroughOff = L"Durchklicken: AUS";
+  static constexpr const wchar_t *OSD_OverlayModeOn = L"Pausmodus: AN";
+  static constexpr const wchar_t *OSD_OverlayModeOff = L"Pausmodus: AUS";
+  static constexpr const wchar_t *OSD_Opacity = L"Deckkraft";
   static constexpr const wchar_t *Settings_Tab_Visuals = L"Interface";
   static constexpr const wchar_t *Settings_Tab_Controls = L"Steuerung";
   static constexpr const wchar_t *Settings_Tab_Image = L"Bild";
@@ -3748,6 +3868,7 @@ struct DE {
 // Spanish Table
 // ----------------------------------------------------------------
 struct ES {
+  static constexpr const wchar_t *Context_OverlayMode = L"Modo Calco\tCtrl+Shift+O";
   static constexpr const wchar_t *OSD_NoImage = L"No hay imagen cargada";
   static constexpr const wchar_t *OSD_Lossless = L"Sin pérdida";
   static constexpr const wchar_t *OSD_ReencodedLossless =
@@ -3773,6 +3894,7 @@ struct ES {
   static constexpr const wchar_t *Dialog_ButtonSave = L"Guardar";
   static constexpr const wchar_t *Dialog_ButtonSaveAs = L"Guardar como...";
   static constexpr const wchar_t *Dialog_ButtonDiscard = L"Descartar";
+  static constexpr const wchar_t *Dialog_ButtonContinue = L"Continuar";
   static constexpr const wchar_t *Checkbox_AlwaysSaveLossless =
       L"Siempre guardar sin pérdida";
   static constexpr const wchar_t *Checkbox_AlwaysSaveEdgeAdapted =
@@ -3978,6 +4100,21 @@ struct ES {
   static constexpr const wchar_t *Context_GalleryOpenNewWindow =
       L"Abrir en una ventana nueva";
   static constexpr const wchar_t *Context_Exit = L"Salir\tMButton/Esc";
+  static constexpr const wchar_t *Menu_ExitPassthrough = L"Salir del modo de paso de ratón";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaUp = L"Aumentar opacidad";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaDown = L"Disminuir opacidad";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOn = L"Activar paso de ratón";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOff = L"Desactivar paso de ratón";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayExit = L"Salir del modo calco";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomIn = L"Acercar (Calco)";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomOut = L"Alejar (Calco)";
+  static constexpr const wchar_t *Dialog_PassthroughTitle = L"Modo de paso de ratón";
+  static constexpr const wchar_t *Dialog_PassthroughContent = L"Los eventos del ratón pasarán a la ventana de abajo.\nSolo se puede salir mediante el atajo global (Shift+Esc) o el menú de la barra de tareas.\n\n¿Continuar?";
+  static constexpr const wchar_t *OSD_PassthroughOn = L"Paso de ratón: ACTIVADO (Shift+Esc para salir)";
+  static constexpr const wchar_t *OSD_PassthroughOff = L"Paso de ratón: DESACTIVADO";
+  static constexpr const wchar_t *OSD_OverlayModeOn = L"Modo calco: ACTIVADO";
+  static constexpr const wchar_t *OSD_OverlayModeOff = L"Modo calco: DESACTIVADO";
+  static constexpr const wchar_t *OSD_Opacity = L"Opacidad";
   static constexpr const wchar_t *Settings_Tab_Visuals = L"Interfaz";
   static constexpr const wchar_t *Settings_Tab_Controls = L"Controles";
   static constexpr const wchar_t *Settings_Tab_Image = L"Imagen";
@@ -4346,6 +4483,7 @@ template <typename T> void ApplyT() {
   Dialog_ButtonSave = T::Dialog_ButtonSave;
   Dialog_ButtonSaveAs = T::Dialog_ButtonSaveAs;
   Dialog_ButtonDiscard = T::Dialog_ButtonDiscard;
+  Dialog_ButtonContinue = T::Dialog_ButtonContinue;
 
   Checkbox_AlwaysSaveLossless = T::Checkbox_AlwaysSaveLossless;
   Checkbox_AlwaysSaveEdgeAdapted = T::Checkbox_AlwaysSaveEdgeAdapted;
@@ -4425,9 +4563,26 @@ template <typename T> void ApplyT() {
   Context_Settings = T::Context_Settings;
 
   Context_CompareMode = T::Context_CompareMode;
+  Context_OverlayMode = T::Context_OverlayMode;
   Context_GalleryOpenCompare = T::Context_GalleryOpenCompare;
   Context_GalleryOpenNewWindow = T::Context_GalleryOpenNewWindow;
   Context_Exit = T::Context_Exit;
+
+  Menu_ExitPassthrough = T::Menu_ExitPassthrough;
+  Dialog_PassthroughTitle = T::Dialog_PassthroughTitle;
+  Dialog_PassthroughContent = T::Dialog_PassthroughContent;
+  OSD_PassthroughOn = T::OSD_PassthroughOn;
+  OSD_PassthroughOff = T::OSD_PassthroughOff;
+  OSD_OverlayModeOn = T::OSD_OverlayModeOn;
+  OSD_OverlayModeOff = T::OSD_OverlayModeOff;
+  OSD_Opacity = T::OSD_Opacity;
+  Toolbar_Tooltip_OverlayZoomIn = T::Toolbar_Tooltip_OverlayZoomIn;
+  Toolbar_Tooltip_OverlayZoomOut = T::Toolbar_Tooltip_OverlayZoomOut;
+  Toolbar_Tooltip_OverlayAlphaUp = T::Toolbar_Tooltip_OverlayAlphaUp;
+  Toolbar_Tooltip_OverlayAlphaDown = T::Toolbar_Tooltip_OverlayAlphaDown;
+  Toolbar_Tooltip_OverlayPassthroughOn = T::Toolbar_Tooltip_OverlayPassthroughOn;
+  Toolbar_Tooltip_OverlayPassthroughOff = T::Toolbar_Tooltip_OverlayPassthroughOff;
+  Toolbar_Tooltip_OverlayExit = T::Toolbar_Tooltip_OverlayExit;
 
   Message_SaveErrorTitle = T::Message_SaveErrorTitle;
   Message_SaveErrorContent = T::Message_SaveErrorContent;
@@ -4763,6 +4918,599 @@ template <typename T> void ApplyT() {
   HUD_Label_Ref = T::HUD_Label_Ref;
 }
 
+struct FR {
+  static constexpr const wchar_t *Context_OverlayMode = L"Mode Décalque\tCtrl+Shift+O";
+  static constexpr const wchar_t *OSD_NoImage = L"No image loaded";
+  static constexpr const wchar_t *OSD_Lossless = L"Lossless";
+  static constexpr const wchar_t *OSD_ReencodedLossless =
+      L"Re-encoded (Lossless)";
+  static constexpr const wchar_t *OSD_EdgeAdapted = L"Cropped";
+  static constexpr const wchar_t *OSD_Reencoded = L"Lossy";
+  static constexpr const wchar_t *OSD_ReadOnly =
+      L"Access denied - file may be in use or read-only";
+  static constexpr const wchar_t *OSD_NotPerfect =
+      L"Transform is not perfect (Edge optimized)";
+  static constexpr const wchar_t *OSD_SpanOn = L"Video Wall: ON";
+  static constexpr const wchar_t *OSD_SpanOff = L"Video Wall: OFF";
+
+  static constexpr const wchar_t *Action_RotateCW = L"Rotate 90\x00B0 CW";
+  static constexpr const wchar_t *Action_RotateCCW = L"Rotate 90\x00B0 CCW";
+  static constexpr const wchar_t *Action_Rotate180 = L"Rotate 180\x00B0";
+  static constexpr const wchar_t *Action_FlipH = L"Flip Horizontal";
+  static constexpr const wchar_t *Action_FlipV = L"Flip Vertical";
+
+  static constexpr const wchar_t *Dialog_SaveTitle = L"Save Changes?";
+  static constexpr const wchar_t *Dialog_SaveContent =
+      L"The image has been modified. Do you want to save changes?";
+  static constexpr const wchar_t *Dialog_ButtonSave = L"Save";
+  static constexpr const wchar_t *Dialog_ButtonSaveAs = L"Save As...";
+  static constexpr const wchar_t *Dialog_ButtonDiscard = L"Discard";
+  static constexpr const wchar_t *Dialog_ButtonContinue = L"Continuer";
+
+  static constexpr const wchar_t *Checkbox_AlwaysSaveLossless =
+      L"Always save lossless transforms";
+  static constexpr const wchar_t *Checkbox_AlwaysSaveEdgeAdapted =
+      L"Always save edge-adapted";
+  static constexpr const wchar_t *Checkbox_AlwaysSaveLossy =
+      L"Always save re-encoded";
+
+  static constexpr const wchar_t *OSD_HEICCodecMissing =
+      L"Cannot decode HEIC - Install HEVC Video Extension";
+  static constexpr const wchar_t *Dialog_HEICTitle = L"Cannot decode HEIC";
+  static constexpr const wchar_t *Dialog_HEICContent =
+      L"Your system is missing the HEVC Video Extension.\nQuickView uses "
+      L"system hardware acceleration for best performance.";
+  static constexpr const wchar_t *Dialog_HEICGetExtension =
+      L"Get Extension (Free)";
+  static constexpr const wchar_t *Dialog_Cancel = L"Cancel";
+
+  static constexpr const wchar_t *Settings_Tab_General = L"General";
+  static constexpr const wchar_t *Settings_Tab_About = L"About";
+
+  static constexpr const wchar_t *Settings_Group_Foundation = L"Foundation";
+  static constexpr const wchar_t *Settings_Group_Startup = L"Startup";
+  static constexpr const wchar_t *Settings_Group_Habits = L"Habits";
+
+  static constexpr const wchar_t *Settings_Label_Language = L"Language";
+  static constexpr const wchar_t *Settings_Label_SingleInstance =
+      L"Single Instance";
+  static constexpr const wchar_t *Settings_Label_CheckUpdates =
+      L"Check Updates";
+  static constexpr const wchar_t *Settings_Label_NavLoopMode = L"Loop";
+  static constexpr const wchar_t *Settings_Label_SortOrder = L"Sort Order";
+  static constexpr const wchar_t *Settings_Label_SortDescending = L"Descending";
+  static constexpr const wchar_t *Settings_Label_ConfirmDel = L"Confirm Delete";
+  static constexpr const wchar_t *Settings_Label_Portable = L"Portable Mode / Cleanup";
+  static constexpr const wchar_t *Settings_Tooltip_Portable =
+      L"Portable Mode / Registry Cleanup:\nWhen enabled, QuickView runs in "
+      L"portable mode. It will automatically clean up existing registry "
+      L"associations, disable automatic registry modification, and store "
+      L"configuration files in the application directory instead of AppData.";
+  static constexpr const wchar_t *Settings_Label_SpanDisplays =
+      L"Span Displays";
+  static constexpr const wchar_t *Settings_Label_UIScale = L"UI Scale";
+
+  static constexpr const wchar_t *Settings_Status_RestartRequired =
+      L"Restart required";
+  static constexpr const wchar_t *Settings_Status_NoWritePerm =
+      L"No Write Permission!";
+  static constexpr const wchar_t *Settings_Status_Enabled = L"Enabled";
+
+  static constexpr const wchar_t *Settings_Header_PoweredBy = L"Powered by";
+
+
+
+  // Messages
+  static constexpr const wchar_t *Message_SaveErrorTitle = L"Error";
+  static constexpr const wchar_t *Message_SaveErrorContent =
+      L"Failed to save file. File locked?";
+
+  // Toolbar Tooltips
+  static constexpr const wchar_t *Toolbar_Tooltip_Prev = L"Previous (Left)";
+  static constexpr const wchar_t *Toolbar_Tooltip_Next = L"Next (Right)";
+  static constexpr const wchar_t *Toolbar_Tooltip_RotateL =
+      L"Rotate Left (Shift+R)";
+  static constexpr const wchar_t *Toolbar_Tooltip_RotateR = L"Rotate Right (R)";
+  static constexpr const wchar_t *Toolbar_Tooltip_FlipH =
+      L"Flip Horizontal (H)";
+  static constexpr const wchar_t *Toolbar_Tooltip_Lock = L"Lock Window (Temp)";
+  static constexpr const wchar_t *Toolbar_Tooltip_Unlock = L"Unlock Window";
+  static constexpr const wchar_t *Toolbar_Tooltip_Gallery = L"Gallery (T)";
+  static constexpr const wchar_t *Toolbar_Tooltip_Info = L"Info Panel";
+  static constexpr const wchar_t *Toolbar_Tooltip_RawPreview =
+      L"RAW: Preview (Click for Full)";
+  static constexpr const wchar_t *Toolbar_Tooltip_RawFull =
+      L"RAW: Full Decode (Click for Preview)";
+  static constexpr const wchar_t *Toolbar_Tooltip_FixExtension =
+      L"Extension Mismatch (Fix)";
+  static constexpr const wchar_t *Toolbar_Tooltip_Pin = L"Pin Toolbar";
+  static constexpr const wchar_t *Toolbar_Tooltip_Unpin = L"Unpin Toolbar";
+  static constexpr const wchar_t *Toolbar_Tooltip_NormalMode = L"Normal Mode";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareMode = L"Compare Mode";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareOpen =
+      L"Open New Image in Selection";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareSwap =
+      L"Swap Left/Right";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareLayout =
+      L"Toggle Layout";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareInfo = L"Compare Info";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareDelete =
+      L"Delete Selected Image";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareZoomIn =
+      L"Zoom In (Fine-tune)";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareZoomOut =
+      L"Zoom Out (Fine-tune)";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareSyncZoomOn =
+      L"Zoom Sync: ON";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareSyncZoomOff =
+      L"Zoom Sync: OFF";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareSyncPanOn =
+      L"Pan Sync: ON";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareSyncPanOff =
+      L"Pan Sync: OFF";
+  static constexpr const wchar_t *Toolbar_Tooltip_CompareExit = L"Exit Compare";
+  static constexpr const wchar_t *Toolbar_Tooltip_AnimPlay = L"Play Animation";
+  static constexpr const wchar_t *Toolbar_Tooltip_AnimPause = L"Pause Animation";
+  static constexpr const wchar_t *Toolbar_Tooltip_AnimPrev = L"Previous Frame";
+  static constexpr const wchar_t *Toolbar_Tooltip_AnimNext = L"Next Frame";
+  static constexpr const wchar_t *Toolbar_Tooltip_AnimDirtyOn = L"Dirty Rect Debug: ON";
+  static constexpr const wchar_t *Toolbar_Tooltip_AnimDirtyOff = L"Dirty Rect Debug: OFF";
+  static constexpr const wchar_t *Toolbar_Tooltip_AnimSpeed = L"Animation Speed";
+
+
+  // OSD
+  static constexpr const wchar_t *OSD_Copied = L"Copied!";
+  static constexpr const wchar_t *OSD_CoordinatesCopied =
+      L"Coordinates copied!";
+  static constexpr const wchar_t *OSD_FilePathCopied = L"File path copied!";
+  static constexpr const wchar_t *OSD_Zoom100 = L"Zoom: 100%";
+  static constexpr const wchar_t *OSD_ZoomFit = L"Zoom: Fit Screen";
+  static constexpr const wchar_t *OSD_PrintInstruction =
+      L"Print: Use Ctrl+P in opened app";
+  static constexpr const wchar_t *OSD_MovedToRecycleBin =
+      L"Moved to Recycle Bin";
+  static constexpr const wchar_t *OSD_WindowLocked = L"Window Locked";
+  static constexpr const wchar_t *OSD_WindowUnlocked = L"Window Unlocked";
+  static constexpr const wchar_t *OSD_AlwaysOnTopOn = L"Always on Top: ON";
+  static constexpr const wchar_t *OSD_AlwaysOnTopOff = L"Always on Top: OFF";
+  static constexpr const wchar_t *OSD_WallpaperSet = L"Wallpaper Set";
+  static constexpr const wchar_t *OSD_WallpaperFailed =
+      L"Failed to set wallpaper";
+  static constexpr const wchar_t *OSD_Renamed = L"Renamed";
+  static constexpr const wchar_t *OSD_RenameFailed = L"Rename Failed";
+  static constexpr const wchar_t *OSD_Restored = L"Restored"; // New
+  static constexpr const wchar_t *OSD_ExtensionFixed = L"Extension Fixed";
+  static constexpr const wchar_t *OSD_FirstImage = L"First image";
+  static constexpr const wchar_t *OSD_LastImage = L"Last image";
+  static constexpr const wchar_t *OSD_HD = L"HD";
+  static constexpr const wchar_t *OSD_ZoomPrefix = L"Zoom: ";
+  static constexpr const wchar_t *OSD_AnimPlaying = L"Playing";
+  static constexpr const wchar_t *OSD_AnimPaused = L"Paused (Inspector Mode: Alt+Left/Right to Seek)";
+  static constexpr const wchar_t *OSD_AnimDirtyOn = L"Dirty Rect: ON";
+  static constexpr const wchar_t *OSD_AnimDirtyOff = L"Dirty Rect: OFF";
+
+
+  // Context Menu
+  static constexpr const wchar_t *Context_Open = L"Open...\tCtrl+O";
+  static constexpr const wchar_t *Context_OpenWith = L"Open With...";
+  static constexpr const wchar_t *Context_Edit = L"Edit\tE";
+  static constexpr const wchar_t *Context_ShowInExplorer = L"Show in Explorer";
+  static constexpr const wchar_t *Context_OpenFolder = L"Open Folder";
+  static constexpr const wchar_t *Context_CopyImage = L"Copy Image\tCtrl+C";
+  static constexpr const wchar_t *Context_CopyPath = L"Copy Path\tCtrl+Alt+C";
+  static constexpr const wchar_t *Context_Print = L"Print\tCtrl+P";
+  static constexpr const wchar_t *Context_RotateCW = L"Rotate 90\x00B0 CW\tR";
+  static constexpr const wchar_t *Context_RotateCCW =
+      L"Rotate 90\x00B0 CCW\tShift+R";
+  static constexpr const wchar_t *Context_FlipH = L"Flip Horizontal\tH";
+  static constexpr const wchar_t *Context_FlipV = L"Flip Vertical\tV";
+  static constexpr const wchar_t *Context_Transform = L"Transform";
+  static constexpr const wchar_t *Context_ActualSize =
+      L"Actual Size (100%)\t1 / Z";
+  static constexpr const wchar_t *Context_FitToScreen = L"Fit to Screen\t0 / F";
+  static constexpr const wchar_t *Context_ZoomIn = L"Zoom In\t+ / Ctrl +";
+  static constexpr const wchar_t *Context_ZoomOut = L"Zoom Out\t- / Ctrl -";
+  static constexpr const wchar_t *Context_LockWindow = L"Lock Window";
+  static constexpr const wchar_t *Context_AlwaysOnTop =
+      L"Always on Top\tCtrl+T";
+  static constexpr const wchar_t *Context_HUDGallery = L"HUD Gallery\tT";
+  static constexpr const wchar_t *Context_LiteInfoPanel =
+      L"Lite Info Panel\tTab";
+  static constexpr const wchar_t *Context_FullInfoPanel = L"Full Info Panel\tI";
+  static constexpr const wchar_t *Context_RenderRAW = L"Render RAW";
+  static constexpr const wchar_t *Context_PixelArtMode = L"Pixel Art Mode";
+  static constexpr const wchar_t *Context_ColorSpace = L"Color Space";
+  static constexpr const wchar_t *Context_Fullscreen = L"Fullscreen\tF11";
+  static constexpr const wchar_t *Context_SpanDisplays =
+      L"Span Displays (Video Wall)\tCtrl+F11";
+  static constexpr const wchar_t *Context_View = L"View";
+  static constexpr const wchar_t *Context_WallpaperFill = L"Fill";
+  static constexpr const wchar_t *Context_WallpaperFit = L"Fit";
+  static constexpr const wchar_t *Context_WallpaperTile = L"Tile";
+  static constexpr const wchar_t *Context_SetAsWallpaper = L"Set as Wallpaper";
+  static constexpr const wchar_t *Context_Rename = L"Rename\tF2";
+  static constexpr const wchar_t *Context_FixExtension = L"Fix Extension";
+  static constexpr const wchar_t *Context_Delete = L"Delete\tDel";
+  static constexpr const wchar_t *Context_SortBy = L"Sort By";
+  static constexpr const wchar_t *Context_NavOrder = L"Navigation Order";
+  static constexpr const wchar_t *Context_SortAscending = L"Ascending";
+  static constexpr const wchar_t *Context_SortDescending = L"Descending";
+  static constexpr const wchar_t *Context_Settings = L"Settings...";
+
+  static constexpr const wchar_t *Context_CompareMode = L"Compare Mode\tC";
+  static constexpr const wchar_t *Context_GalleryOpenCompare =
+      L"Open in Compare Mode";
+  static constexpr const wchar_t *Context_GalleryOpenNewWindow =
+      L"Open in New Window";
+  static constexpr const wchar_t *Context_Exit = L"Exit\tMButton/Esc";
+  static constexpr const wchar_t *Menu_ExitPassthrough = L"Quitter le mode clic à travers";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaUp = L"Augmenter l'opacité";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayAlphaDown = L"Diminuer l'opacité";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOn = L"Activer le clic à travers";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayPassthroughOff = L"Désactiver le clic à travers";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayExit = L"Quitter le mode décalque";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomIn = L"Zoom avant (décalque)";
+  static constexpr const wchar_t *Toolbar_Tooltip_OverlayZoomOut = L"Zoom arrière (décalque)";
+  static constexpr const wchar_t *Dialog_PassthroughTitle = L"Mode Clic à Travers";
+  static constexpr const wchar_t *Dialog_PassthroughContent = L"Les événements de souris passeront à travers la fenêtre.\nQuitter via le raccourci global (Shift+Esc) ou le menu de la barre des tâches.\n\nContinuer ?";
+  static constexpr const wchar_t *OSD_PassthroughOn = L"Clic à travers : ON (Shift+Esc pour quitter)";
+  static constexpr const wchar_t *OSD_PassthroughOff = L"Clic à travers : OFF";
+  static constexpr const wchar_t *OSD_OverlayModeOn = L"Mode décalque : ON";
+  static constexpr const wchar_t *OSD_OverlayModeOff = L"Mode décalque : OFF";
+  static constexpr const wchar_t *OSD_Opacity = L"Opacité";
+
+  static constexpr const wchar_t *Settings_Tab_Visuals = L"Interface";
+  static constexpr const wchar_t *Settings_Tab_Controls = L"Controls";
+  static constexpr const wchar_t *Settings_Tab_Image = L"Image";
+  static constexpr const wchar_t *Settings_Tab_Advanced = L"Advanced";
+
+  static constexpr const wchar_t *Settings_Header_Backdrop = L"Backdrop";
+  static constexpr const wchar_t *Settings_Header_Window = L"Window";
+  static constexpr const wchar_t *Settings_Header_WindowLock = L"Window Lock";
+  static constexpr const wchar_t *Settings_Header_Panel = L"Panel";
+  static constexpr const wchar_t *Settings_Header_Mouse = L"Mouse";
+  static constexpr const wchar_t *Settings_Header_Edge = L"Edge";
+  static constexpr const wchar_t *Settings_Header_Render = L"Render";
+  static constexpr const wchar_t *Settings_Header_Prompts = L"Prompts";
+  static constexpr const wchar_t *Settings_Header_System = L"System";
+  static constexpr const wchar_t *Settings_Header_Features = L"Features";
+  static constexpr const wchar_t *Settings_Header_Performance = L"Performance";
+  static constexpr const wchar_t *Settings_Header_Transparency = L"Transparency";
+
+  // Geek Glass Settings
+  static constexpr const wchar_t *Settings_Header_GeekGlass =
+      L"Glass Engine (GPU)";
+  static constexpr const wchar_t *Settings_Label_EnableGeekGlass =
+      L"Enable Glass";
+  static constexpr const wchar_t *Settings_Label_GlassUIAnimations =
+      L"UI Animations";
+  static constexpr const wchar_t *Settings_Header_CoreMaterial =
+      L"Component Material";
+  static constexpr const wchar_t *Settings_Label_BlurSigma = L"Glass Blur Sigma";
+  static constexpr const wchar_t *Settings_Status_GlassDisabled =
+      L"Glass Disabled (System)";
+  static constexpr const wchar_t *Settings_Label_TintDensity = L"Tint Layer";
+  static constexpr const wchar_t *Settings_Tooltip_TintDensity =
+      L"Overall color intensity of the glass frost effect.";
+  static constexpr const wchar_t *Settings_Label_SpecularOpacity = L"Reflex (Specular)";
+  static constexpr const wchar_t *Settings_Tooltip_SpecularOpacity =
+      L"Brightness of the diagonal lighting reflections.";
+  static constexpr const wchar_t *Settings_Label_ShadowIntensity =
+      L"Shadow Depth";
+  static constexpr const wchar_t *Settings_Tooltip_ShadowIntensity =
+      L"Strength of the ambient occlusion shadows.";
+  static constexpr const wchar_t *Settings_Header_VectorAssets =
+      L"Vector Rendering";
+  static constexpr const wchar_t *Settings_Label_VectorStrokeWeight =
+      L"Icon Stroke weight";
+  static constexpr const wchar_t *Settings_Option_StrokeStandard =
+      L"Standard (1.5px)";
+  static constexpr const wchar_t *Settings_Option_StrokeFine = L"Fine (1.0px)";
+  static constexpr const wchar_t *Settings_Header_GlassTint = L"Tint Profile";
+  static constexpr const wchar_t *Settings_Label_TintProfile = L"Color logic";
+  static constexpr const wchar_t *Settings_Option_TintAuto = L"Auto (Adaptive)";
+  static constexpr const wchar_t *Settings_Option_TintCustom = L"Custom Color";
+  static constexpr const wchar_t *Settings_Label_GlassCustomColor =
+      L"Manual Tint";
+  static constexpr const wchar_t *Settings_Header_DensityMatrix =
+      L"Control Surface Density (%)";
+  static constexpr const wchar_t *Settings_Label_OsdDensity = L"OSD & HUD";
+  static constexpr const wchar_t *Settings_Tooltip_OsdDensity =
+      L"Transparency for small floating overlays.";
+  static constexpr const wchar_t *Settings_Label_PanelsDensity =
+      L"Toolbar & Sidebars";
+  static constexpr const wchar_t *Settings_Tooltip_PanelsDensity =
+      L"Transparency for persistent control panels.";
+  static constexpr const wchar_t *Settings_Label_ModalsDensity =
+      L"Dialogs & Settings";
+  static constexpr const wchar_t *Settings_Tooltip_ModalsDensity =
+      L"Transparency for centered popups.";
+  static constexpr const wchar_t *Settings_Label_MenusDensity = L"Menus";
+  static constexpr const wchar_t *Settings_Tooltip_MenusDensity =
+      L"Transparency for right-click context menus.";
+
+  static constexpr const wchar_t *Settings_Tab_Theme = L"Theme";
+  static constexpr const wchar_t *Settings_Label_ThemeMode = L"Preset";
+  static constexpr const wchar_t *Settings_Option_ThemeAuto = L"System";
+  static constexpr const wchar_t *Settings_Option_ThemeDark = L"Dark";
+  static constexpr const wchar_t *Settings_Option_ThemeLight = L"Light";
+  static constexpr const wchar_t *Settings_Option_ThemeCustom = L"Design";
+  static constexpr const wchar_t *Settings_Label_AmbientDimmer =
+      L"Modal Dimmer";
+  static constexpr const wchar_t *Settings_Tooltip_AmbientDimmer =
+      L"Dim the background when a modal or settings window is open.";
+  static constexpr const wchar_t *Settings_Label_AccentColor = L"Accent Color";
+  static constexpr const wchar_t *Settings_Label_TextColor = L"Text Color";
+  static constexpr const wchar_t *Settings_Header_ThemeManagement =
+      L"Theme Engine";
+  static constexpr const wchar_t *Settings_Action_ExportTheme = L"Export";
+  static constexpr const wchar_t *Settings_Action_ImportTheme = L"Import";
+
+  static constexpr const wchar_t *Settings_Label_CanvasColor = L"Canvas Color";
+  static constexpr const wchar_t *Settings_Label_Overlay = L"Overlay";
+  static constexpr const wchar_t *Settings_Label_ShowGrid =
+      L"Show Grid Overlay";
+  static constexpr const wchar_t *Settings_Label_CrossFade =
+      L"Image Transition Fade";
+  static constexpr const wchar_t *Settings_Label_AlwaysOnTop = L"Always on Top";
+  static constexpr const wchar_t *Settings_Label_LockWindow = L"Lock Window";
+  static constexpr const wchar_t *Settings_Tooltip_LockWindow = L"Controls whether the program locks the window border by default on startup, rather than following image scaling.";
+  static constexpr const wchar_t *Settings_Label_AutoHideTitle =
+      L"Auto-Hide Title Bar";
+  static constexpr const wchar_t *Settings_Label_RoundedCorners =
+      L"Rounded Corners";
+  static constexpr const wchar_t *Settings_Tooltip_RoundedCorners = L"Controls window and context menu rounded corners. Requires Windows 11.";
+  static constexpr const wchar_t *Settings_Label_LockToolbar =
+      L"Lock Bottom Toolbar";
+  static constexpr const wchar_t *Settings_Label_WindowMinSize =
+      L"Minimum Window Width";
+  static constexpr const wchar_t *Settings_Label_WindowMaxSizePercent =
+      L"Maximum Start Size (%)";
+  static constexpr const wchar_t *Settings_Label_ShowBorderIndicator =
+      L"Show Edge Indicators";
+  static constexpr const wchar_t *Settings_Label_KeepWindowSizeOnNav =
+      L"Keep window size on navigation";
+  static constexpr const wchar_t *Settings_Label_RememberLastWindowSize =
+      L"Remember last window size";
+  static constexpr const wchar_t *Settings_Label_UpscaleSmallImagesWhenLocked =
+      L"Adapt small images";
+  static constexpr const wchar_t *Settings_Label_EnableSmoothScaling =
+      L"Smooth Window Scaling (GPU)";
+  static constexpr const wchar_t *Settings_Label_ExifMode = L"EXIF Panel Mode";
+  static constexpr const wchar_t *Settings_Label_ToolbarInfoDefault =
+      L"Toolbar Info Default";
+  static constexpr const wchar_t *Settings_Label_OpenFullScreenMode =
+      L"Open Fullscreen";
+  static constexpr const wchar_t *Settings_Label_FullScreenZoomMode =
+      L"Fullscreen Zoom Mode";
+  static constexpr const wchar_t *Settings_Option_FitScreen = L"Fit to Screen";
+  static constexpr const wchar_t *Settings_Option_AutoFit = L"Auto";
+  static constexpr const wchar_t *Settings_Label_InvertWheel = L"Invert Wheel";
+  static constexpr const wchar_t *Settings_Label_ZoomSnapDamping =
+      L"Zoom 100% Snap Damping";
+  static constexpr const wchar_t *Settings_Label_MouseAnchorZoom =
+      L"Mouse-Anchored Window Zoom";
+  static constexpr const wchar_t *Settings_Label_RightButtonDragZoom =
+      L"Right Button Drag Zoom";
+  static constexpr const wchar_t *Settings_Label_WheelZoomSpeed = L"Wheel Zoom Speed";
+  static constexpr const wchar_t *Settings_Label_ThumbWheel = L"Thumb Wheel";
+  static constexpr const wchar_t *Settings_Label_RightDragZoomSpeed = L"Right Drag Zoom Speed";
+  static constexpr const wchar_t *OSD_WheelZoomSpeed = L"Zoom Speed (Temp): ";
+  static constexpr const wchar_t *Help_Action_AdjustZoomSpeed = L"Temporarily Adjust Zoom Speed";
+  static constexpr const wchar_t *Help_Action_LockWindowZoom = L"Temporarily Lock Window Zoom";
+  static constexpr const wchar_t *Settings_Label_InvertButtons =
+      L"Invert Side Buttons";
+  static constexpr const wchar_t *Settings_Label_ZoomModeIn = L"Zoom Mode (In)";
+  static constexpr const wchar_t *Settings_Label_ZoomModeOut =
+      L"Zoom Mode (Out)";
+  static constexpr const wchar_t *Settings_Label_LeftDrag = L"Left Drag";
+  static constexpr const wchar_t *Settings_Label_MiddleDrag = L"Middle Drag";
+  static constexpr const wchar_t *Settings_Label_MiddleClick = L"Middle Click";
+  static constexpr const wchar_t *Settings_Label_EdgeNavClick =
+      L"Edge Nav Click";
+  static constexpr const wchar_t *Settings_Label_DisableEdgeNavInCompare =
+      L"Disable in Compare Mode";
+  static constexpr const wchar_t *Settings_Label_NavIndicator =
+      L"Nav Indicator";
+  static constexpr const wchar_t *Settings_Label_AutoRotate =
+      L"Auto Rotate (EXIF)";
+  static constexpr const wchar_t *Settings_Label_CMS = L"Color Management";
+  static constexpr const wchar_t *Settings_Label_AdvancedColor = L"Advanced Color (HDR)";
+  static constexpr const wchar_t *Settings_Label_HdrToneMapping = L"HDR Tone Mapping";
+  static constexpr const wchar_t *Settings_Label_HdrPeakNitsOverride = L"HDR Peak Brightness (Nits)";
+  static constexpr const wchar_t *Settings_Tooltip_HdrPeakNitsOverride = L"Set to 0 to use system detected brightness.";
+  static constexpr const wchar_t *Settings_Option_HdrPerceptual = L"Perceptual";
+  static constexpr const wchar_t *Settings_Option_HdrColorimetric = L"Colorimetric";
+  static constexpr const wchar_t *Settings_Label_CmsFallback = L"Untagged Image Fallback";
+  static constexpr const wchar_t *Settings_Label_CustomProof = L"Soft Proof Profile (.icc)";
+  static constexpr const wchar_t *Context_SoftProofing = L"Soft Proofing Preview";
+  static constexpr const wchar_t *Context_SoftProofProfile = L"Proof Profile";
+  static constexpr const wchar_t *Context_SoftProofCustom = L"Custom...";
+  static constexpr const wchar_t *Settings_Value_ComingSoon = L"Coming Soon";
+  static constexpr const wchar_t *Settings_Label_ForceRaw = L"Force RAW Decode";
+  static constexpr const wchar_t *Settings_Label_AddToOpenWith =
+      L"Add to Open With";
+  static constexpr const wchar_t *Settings_Label_CustomEditor = L"Custom Image Editor";
+  static constexpr const wchar_t *Context_SelectEditor = L"Select Editor";
+  static constexpr const wchar_t *OSD_EditorLaunchFailed = L"Failed to launch editor. Please configure it again.";
+  static constexpr const wchar_t *Settings_Action_Add = L"Add";
+  static constexpr const wchar_t *Settings_Action_Added = L"Added";
+  static constexpr const wchar_t *Settings_Status_DisabledInPortable =
+      L"Disabled in Portable Mode";
+  static constexpr const wchar_t *Settings_Label_DebugHUD =
+      L"Enable Debug HUD (F12)";
+  static constexpr const wchar_t *Settings_Label_Prefetch = L"Prefetch System";
+  static constexpr const wchar_t *Settings_Label_InfoPanelAlpha = L"Info Panel";
+  static constexpr const wchar_t *Settings_Label_ToolbarAlpha = L"Toolbar";
+  static constexpr const wchar_t *Settings_Label_SettingsAlpha = L"Settings";
+  static constexpr const wchar_t *Settings_Label_Reset = L"Reset All Settings";
+  static constexpr const wchar_t *Settings_Action_Restore = L"Restore";
+  static constexpr const wchar_t *Settings_Action_Done = L"Done";
+
+  static constexpr const wchar_t *Settings_Option_CmsUnmanaged = L"Unmanaged";
+  static constexpr const wchar_t *Settings_Option_CmssRGB = L"sRGB";
+  static constexpr const wchar_t *Settings_Option_CmsP3 = L"Display P3";
+  static constexpr const wchar_t *Settings_Option_CmsAdobeRGB = L"Adobe RGB (1998)";
+  static constexpr const wchar_t *Settings_Option_CmsGray = L"Grayscale (Tonal Check)";
+  static constexpr const wchar_t *Settings_Option_CmsProPhoto = L"ProPhoto RGB";
+  static constexpr const wchar_t *Settings_Label_CmsIntent = L"Rendering Intent";
+  static constexpr const wchar_t *Settings_Option_CmsIntentRelative =
+      L"Relative Colorimetric";
+  static constexpr const wchar_t *Settings_Option_CmsIntentPerceptual =
+      L"Perceptual";
+
+  static constexpr const wchar_t *Settings_Action_CheckUpdates =
+      L"Check for Updates";
+  static constexpr const wchar_t *Settings_Action_ViewUpdate = L"View Update";
+  static constexpr const wchar_t *Settings_Status_Checking = L"Checking...";
+  static constexpr const wchar_t *Settings_Status_UpToDate = L"Up to date";
+  static constexpr const wchar_t *Settings_Link_GitHub = L"GitHub Repo";
+  static constexpr const wchar_t *Settings_Link_ReportIssue = L"Report Issue";
+  static constexpr const wchar_t *Settings_Link_Hotkeys = L"Help (F1)";
+  static constexpr const wchar_t *Settings_Label_Version = L"Version";
+  static constexpr const wchar_t *Settings_Label_Build = L"Build";
+
+  static constexpr const wchar_t *Dialog_UpdateTitle =
+      L"New Version Available!";
+  static constexpr const wchar_t *Dialog_UpdateContent = L"v%s is ready.";
+  static constexpr const wchar_t *Dialog_UpdateLogHeader = L"Changelog";
+  static constexpr const wchar_t *Dialog_ButtonUpdate = L"Update Now";
+  static constexpr const wchar_t *Dialog_ButtonLater = L"Later";
+  static constexpr const wchar_t *Dialog_ButtonStar = L"Star on GitHub";
+  static constexpr const wchar_t *Dialog_Update_LoveTitle =
+      L"QuickView is built with love";
+  static constexpr const wchar_t *Dialog_Update_LoveMessage =
+      L"I maintain QuickView in my spare time because I believe Windows "
+      L"deserves a faster, cleaner viewer. I don't have a marketing budget or "
+      L"a team. If you enjoy this update, the biggest contribution you can "
+      L"make is to Star us on GitHub or share it with a friend.";
+
+  static constexpr const wchar_t *Settings_Option_Black = L"Black";
+  static constexpr const wchar_t *Settings_Option_White = L"White";
+  static constexpr const wchar_t *Settings_Option_Grid = L"Grid";
+  static constexpr const wchar_t *Settings_Option_Custom = L"Custom";
+  static constexpr const wchar_t *Settings_Option_Off = L"Off";
+  static constexpr const wchar_t *Settings_Option_On = L"On";
+  static constexpr const wchar_t *Settings_Option_Lite = L"Lite";
+  static constexpr const wchar_t *Settings_Option_Full = L"Full";
+  static constexpr const wchar_t *Settings_Option_LargeOnly = L"Large Only";
+  static constexpr const wchar_t *Settings_Option_All = L"All";
+  static constexpr const wchar_t *Settings_Option_Window = L"Window";
+  static constexpr const wchar_t *Settings_Option_Pan = L"Pan";
+  static constexpr const wchar_t *Settings_Option_None = L"None";
+  static constexpr const wchar_t *Settings_Option_Exit = L"Exit";
+  static constexpr const wchar_t *Settings_Option_Arrow = L"Arrow";
+  static constexpr const wchar_t *Settings_Option_Cursor = L"Cursor";
+  static constexpr const wchar_t *Settings_Option_Manual = L"Manual";
+  static constexpr const wchar_t *Settings_Option_SortAuto = L"Auto (Explorer)";
+  static constexpr const wchar_t *Settings_Option_SortName = L"Name";
+  static constexpr const wchar_t *Settings_Option_SortModified = L"Date Modified";
+  static constexpr const wchar_t *Settings_Option_SortDateTaken = L"Date Taken (EXIF)";
+  static constexpr const wchar_t *Settings_Option_SortSize = L"Size";
+  static constexpr const wchar_t *Settings_Option_SortType = L"Type";
+  static constexpr const wchar_t *Settings_Option_NavLoop = L"Loop";
+  static constexpr const wchar_t *Settings_Option_NavThrough = L"Through subfolders";
+
+  static constexpr const wchar_t *Settings_Option_Linear =
+      L"Linear: Basic smoothing";
+  static constexpr const wchar_t *Settings_Option_Nearest =
+      L"Nearest: Extreme sharpness";
+  static constexpr const wchar_t *Settings_Option_HighQualityCubic =
+      L"HQ Cubic: Extreme smoothing";
+  static constexpr const wchar_t *Settings_Option_ZoomAuto = L"Auto";
+  static constexpr const wchar_t *Settings_Option_Auto = L"Auto";
+  static constexpr const wchar_t *Settings_Option_Eco = L"Eco";
+  static constexpr const wchar_t *Settings_Option_Balanced = L"Balanced";
+  static constexpr const wchar_t *Settings_Option_Ultra = L"Ultra";
+
+  static constexpr const wchar_t *Help_Header_Shortcuts = L"Keyboard Shortcuts";
+  static constexpr const wchar_t *Help_Header_Mouse = L"Mouse Actions";
+  static constexpr const wchar_t *Help_Item_NextPrev = L"Next / Previous Image";
+  static constexpr const wchar_t *Help_Item_Zoom = L"Zoom In / Out";
+  static constexpr const wchar_t *Help_Item_Pan = L"Pan Image";
+  static constexpr const wchar_t *Help_Item_Rotate = L"Rotate";
+  static constexpr const wchar_t *Help_Item_Fit = L"Fit to Screen";
+  static constexpr const wchar_t *Help_Item_Delete = L"Delete Image";
+  static constexpr const wchar_t *Help_Item_Fullscreen = L"Fullscreen";
+  static constexpr const wchar_t *Help_Item_Close = L"Close";
+  static constexpr const wchar_t *Help_Item_Compare = L"Compare Mode";
+  static constexpr const wchar_t *Help_Item_FirstLast = L"First / Last Image";
+  static constexpr const wchar_t *Help_Mouse_Left = L"Left Button";
+  static constexpr const wchar_t *Help_Mouse_Middle = L"Middle Button";
+  static constexpr const wchar_t *Help_Mouse_Wheel = L"Wheel";
+  static constexpr const wchar_t *Help_Mouse_Right = L"Right Button";
+  static constexpr const wchar_t *Help_Mouse_RightVerticalDrag =
+      L"Right Button Vertical Drag";
+  static constexpr const wchar_t *Help_Action_MoveWindow =
+      L"Move Window / Exit Fullscreen / Exit Maximized";
+  static constexpr const wchar_t *Help_Action_PanImage = L"Pan Image";
+  static constexpr const wchar_t *Help_Action_ContextMenu = L"Context Menu";
+  static constexpr const wchar_t *Help_Action_NextPrev = L"Next/Prev Image";
+  static constexpr const wchar_t *Help_Action_Zoom = L"Zoom";
+  static constexpr const wchar_t *Help_Action_SmartZoom =
+      L"Smart Zoom (100% / Fit / Restore)";
+  static constexpr const wchar_t *Help_Desc_Copy = L"Copy Image";
+  static constexpr const wchar_t *Help_Desc_Edit = L"Edit";
+
+  static constexpr const wchar_t *Help_Header_Tips = L"Tips & Glossary";
+  static constexpr const wchar_t *Help_Tip_ContextScope =
+      L"Note: Shortcuts apply to the current window only. Settings are global.";
+  static constexpr const wchar_t *Help_Tip_Rotation =
+      L"Rotation: 'Edge Adapted' means minor cropping to align with codec "
+      L"blocks (lossless). 'Lossy' means re-encoding is required.";
+  static constexpr const wchar_t *Help_Tip_VideoWall =
+      L"Video Wall (Ctrl+F11): Spans all screens. If the close button is "
+      L"hidden, double-click anywhere to exit.";
+  static constexpr const wchar_t *Help_Tip_DesignerMode =
+      L"Designer Mode: Pin Window + Lock Size. Use Zoom/Pan to focus on "
+      L"details. Useful for reference images.";
+  static constexpr const wchar_t *Help_Tip_Raw =
+      L"RAW: Shows embedded preview by default for speed. Click the RAW button "
+      L"to fully decode (colors may vary).";
+  static constexpr const wchar_t *Help_Tip_JpegQ =
+      L"JPEG Quality: Estimated value (e.g. Photoshop 100% ≈ 98%). May vary "
+      L"slightly from save settings due to encoder variance, which is normal.";
+
+  static constexpr const wchar_t *HUD_Group_Physical = L"PHYSICAL ATTRIBUTES";
+  static constexpr const wchar_t *HUD_Group_Scientific = L"SCIENTIFIC QUALITY";
+  static constexpr const wchar_t *HUD_Group_Encoding = L"OPTICS & ENCODING";
+  static constexpr const wchar_t *HUD_Tip_Sharp_Desc =
+      L"Edge definition (Laplacian Variance)";
+  static constexpr const wchar_t *HUD_Tip_Sharp_High =
+      L"Crisp edges, high detail";
+  static constexpr const wchar_t *HUD_Tip_Sharp_Low =
+      L"Soft focus or motion blur";
+  static constexpr const wchar_t *HUD_Tip_Sharp_Ref = L"> 500 is very sharp";
+  static constexpr const wchar_t *HUD_Tip_Ent_Desc =
+      L"Information density (Shannon Entropy)";
+  static constexpr const wchar_t *HUD_Tip_Ent_High =
+      L"Complex textures or high noise";
+  static constexpr const wchar_t *HUD_Tip_Ent_Low = L"Flat areas or low detail";
+  static constexpr const wchar_t *HUD_Tip_Ent_Ref = L"7.0-8.0 is high detail";
+  static constexpr const wchar_t *HUD_Tip_BPP_Desc =
+      L"Bits Per Pixel (Compression Efficiency)";
+  static constexpr const wchar_t *HUD_Tip_BPP_High =
+      L"Lower efficiency (more data preserved)";
+  static constexpr const wchar_t *HUD_Tip_BPP_Low =
+      L"Higher efficiency (higher compression)";
+  static constexpr const wchar_t *HUD_Tip_BPP_Ref =
+      L"24.0 (Raw RGB), ~2.0-3.0 (High JPEG), ~0.5-1.5 (WebP/AVIF)";
+
+  static constexpr const wchar_t *HUD_Label_High = L"High: ";
+  static constexpr const wchar_t *HUD_Label_Low = L"Low: ";
+  static constexpr const wchar_t *HUD_Label_Ref = L"Ref: ";
+  static constexpr const wchar_t *Settings_Tooltip_CMS = L"Enable Color Management System.\nWhen enabled, applies high-precision color space conversion via GPU to restore true colors.\nDisabling it reduces GPU load, but may result in oversaturated colors on wide-gamut displays.";
+  static constexpr const wchar_t *Settings_Tooltip_CmsIntent = L"Rendering Intent for color space conversion.\nPerceptual: Compresses out-of-gamut colors to preserve details and gradients (ideal for photos).\nRelative Colorimetric: Preserves in-gamut colors and clips out-of-gamut ones (ideal for UI and icons).";
+  static constexpr const wchar_t *Settings_Tooltip_AdvancedColor = L"Enable 16-bit floating-point rendering pipeline (scRGB).\nWhen enabled, perfectly renders photo highlights on HDR-capable displays by breaking the SDR limit.\nDisabling it forces mapping to SDR output.\nNote: Enabling increases VRAM usage.";
+  static constexpr const wchar_t *Settings_Tooltip_HdrToneMapping = L"HDR Tone Mapping strategy:\nDetermines how HDR images are displayed when exceeding monitor capabilities.\nPerceptual: Preserves highlight details by smoothly compressing the luminance curve (softer look).\nColorimetric: Strict luminance mapping; highlights exceeding the monitor limit are clipped.";
+  static constexpr const wchar_t *Settings_Tooltip_ZoomAuto = L"Auto: 100% scale when image is smaller than screen, fit to screen when larger.";
+  static constexpr const wchar_t *Settings_Header_Professional = L"Professional Tools";
+  static constexpr const wchar_t *Settings_Label_ShowDirtyRect = L"Show update regions button in animation mode";
+  static constexpr const wchar_t *Settings_Tooltip_ShowDirtyRect = L"Show the update region debug button in animation mode to visualize which parts of the frame are being redrawn.";
+};
+
+
+
 void Init() { SetLanguage(Language::Auto); }
 
 void SetLanguage(Language lang) {
@@ -4784,6 +5532,9 @@ void SetLanguage(Language lang) {
       break;
     case LANG_JAPANESE:
       target = Language::Japanese;
+      break;
+    case LANG_FRENCH:
+      target = Language::French;
       break;
     default:
       target = Language::English;
@@ -4809,6 +5560,9 @@ void SetLanguage(Language lang) {
     break;
   case Language::Spanish:
     ApplyT<ES>();
+    break;
+  case Language::French:
+    ApplyT<FR>();
     break;
   case Language::English:
   default:

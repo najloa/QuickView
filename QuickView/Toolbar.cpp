@@ -47,9 +47,9 @@ Toolbar::Toolbar() {
       {ToolbarButtonID::AnimNextFrame, Icons::SkipFwd, {}, true, false},
       {ToolbarButtonID::AnimDirtyRect, Icons::Diagnostic, {}, true, false},
       // Overlay mode buttons (hidden in normal mode)
-      {ToolbarButtonID::OverlayAlphaUp,     Icons::ChevronUp,    {}, true, false},
-      {ToolbarButtonID::OverlayAlphaDown,   Icons::ChevronDown,  {}, true, false},
-      {ToolbarButtonID::OverlayPassthrough, Icons::Eye,          {}, true, false},
+      {ToolbarButtonID::OverlayAlphaUp,     Icons::ComboUp,    {}, true, false},
+      {ToolbarButtonID::OverlayAlphaDown,   Icons::ComboDown,  {}, true, false},
+      {ToolbarButtonID::OverlayPassthrough, Icons::Passthrough,{}, true, false},
       {ToolbarButtonID::OverlayExit,        Icons::ExitToolbar,  {}, true, false},
       // Pin at the very end
       {ToolbarButtonID::Pin, Icons::Pin, {}, true, false},
@@ -143,6 +143,13 @@ void Toolbar::UpdateLayout(float winW, float winH) {
     return id == ToolbarButtonID::Pin;
   };
 
+  auto isOverlayButton = [](ToolbarButtonID id) {
+    return id == ToolbarButtonID::OverlayAlphaUp ||
+           id == ToolbarButtonID::OverlayAlphaDown ||
+           id == ToolbarButtonID::OverlayPassthrough ||
+           id == ToolbarButtonID::OverlayExit;
+  };
+
   auto isAnimButton = [](ToolbarButtonID id) {
     if (id == ToolbarButtonID::AnimPlayPause ||
         id == ToolbarButtonID::AnimPrevFrame ||
@@ -153,17 +160,7 @@ void Toolbar::UpdateLayout(float winW, float winH) {
     return false;
   };
 
-  auto isOverlayButton = [](ToolbarButtonID id) {
-    switch (id) {
-    case ToolbarButtonID::OverlayAlphaUp:
-    case ToolbarButtonID::OverlayAlphaDown:
-    case ToolbarButtonID::OverlayPassthrough:
-    case ToolbarButtonID::OverlayExit:
-      return true;
-    default:
-      return false;
-    }
-  };
+
 
   auto isNormalButton = [&](ToolbarButtonID id) {
     return !isCompareButton(id) && id != ToolbarButtonID::AnimPlayPause && id != ToolbarButtonID::AnimPrevFrame && id != ToolbarButtonID::AnimNextFrame && id != ToolbarButtonID::AnimDirtyRect && !isAlwaysVisible(id);
@@ -172,7 +169,7 @@ void Toolbar::UpdateLayout(float winW, float winH) {
   auto isVisibleButton = [&](const ToolbarButton &btn) {
     if (m_overlayMode) {
       if (isOverlayButton(btn.id)) return true;
-      if (btn.id == ToolbarButtonID::CompareZoomIn || btn.id == ToolbarButtonID::CompareZoomOut) return true;
+      if (btn.id == ToolbarButtonID::CompareZoomIn || btn.id == ToolbarButtonID::CompareZoomOut || btn.id == ToolbarButtonID::LockSize) return true;
       if (isAlwaysVisible(btn.id)) return true;
       return false;
     }
@@ -183,6 +180,11 @@ void Toolbar::UpdateLayout(float winW, float winH) {
       if (isAlwaysVisible(btn.id)) return true;
       return false;
     }
+    if (m_overlayMode) {
+      if (isOverlayButton(btn.id) || isAlwaysVisible(btn.id)) return true;
+      return false;
+    }
+
     if (m_compareMode) {
       if (!isCompareButton(btn.id) && !isAlwaysVisible(btn.id)) return false;
       if (btn.id == ToolbarButtonID::CompareRawToggle && !btn.isWarning) return false;
@@ -205,15 +207,12 @@ void Toolbar::UpdateLayout(float winW, float winH) {
   // Count visible buttons
   int visibleCount = 0;
   bool hasCompareZoom = false;
-  bool hasAnimSpeed = m_animMode;
+  bool hasAnimSpeed = m_animMode && !m_overlayMode;
   for (const auto &btn : m_buttons) {
     if (isVisibleButton(btn))
       visibleCount++;
-    if (m_compareMode &&
-        (btn.id == ToolbarButtonID::CompareZoomIn ||
-         btn.id == ToolbarButtonID::CompareZoomOut) &&
-        isVisibleButton(btn)) {
-      hasCompareZoom = true;
+    if ((m_compareMode || m_overlayMode) && (btn.id == ToolbarButtonID::CompareZoomIn || btn.id == ToolbarButtonID::CompareZoomOut)) {
+        if (isVisibleButton(btn)) hasCompareZoom = true;
     }
   }
 
@@ -221,7 +220,7 @@ void Toolbar::UpdateLayout(float winW, float winH) {
   float totalW = padX * 2 + (visibleCount * buttonSize);
   if (visibleCount > 1)
     totalW += (visibleCount - 1) * gap;
-  if (m_compareMode && hasCompareZoom) {
+  if ((m_compareMode || m_overlayMode) && hasCompareZoom) {
     const float zoomGap = 2.0f * m_uiScale;
     totalW += (56.0f * m_uiScale) + (zoomGap * 2.0f) - gap;
   }
@@ -270,13 +269,16 @@ void Toolbar::UpdateLayout(float winW, float winH) {
       btn.isToggled = m_isPinned;
       btn.iconGlyph = m_isPinned ? Icons::Unpin : Icons::Pin;
     }
+    if (btn.id == ToolbarButtonID::LockSize) {
+        btn.isToggled = g_runtime.LockWindowSize;
+        btn.iconGlyph = g_runtime.LockWindowSize ? Icons::Lock : Icons::Unlock;
+    }
 
     if (visible) {
       btn.rect = D2D1::RectF(cx, cy, cx + buttonSize, cy + buttonSize);
       cx += buttonSize + gap;
 
-      if (m_compareMode && btn.id == ToolbarButtonID::CompareZoomIn &&
-          !stepInserted) {
+      if ((m_compareMode || m_overlayMode) && btn.id == ToolbarButtonID::CompareZoomIn && !stepInserted) {
         cx -= gap; // Backtrack to remove standard gap
         cx += zoomGap; // Padding before capsule
         m_compareStepRect = D2D1::RectF(cx, stepY, cx + stepW, stepY + stepH);
@@ -382,13 +384,13 @@ const wchar_t *GetTooltipText(const ToolbarButton &btn) {
   case ToolbarButtonID::AnimDirtyRect:
     return btn.isToggled ? AppStrings::Toolbar_Tooltip_AnimDirtyOn : AppStrings::Toolbar_Tooltip_AnimDirtyOff;
   case ToolbarButtonID::OverlayAlphaUp:
-    return L"Increase Opacity";
+    return AppStrings::Toolbar_Tooltip_OverlayAlphaUp;
   case ToolbarButtonID::OverlayAlphaDown:
-    return L"Decrease Opacity";
+    return AppStrings::Toolbar_Tooltip_OverlayAlphaDown;
   case ToolbarButtonID::OverlayPassthrough:
-    return btn.isToggled ? L"Disable Click-Through" : L"Enable Click-Through";
+    return btn.isToggled ? AppStrings::Toolbar_Tooltip_OverlayPassthroughOff : AppStrings::Toolbar_Tooltip_OverlayPassthroughOn;
   case ToolbarButtonID::OverlayExit:
-    return L"Exit Overlay Mode";
+    return AppStrings::Toolbar_Tooltip_OverlayExit;
   default:
     return nullptr;
   }
@@ -616,7 +618,8 @@ void Toolbar::Render(ID2D1RenderTarget *pRT) {
       GeekIconRenderer::DrawVectorIcon(pRT, *btn.iconGlyph, iconRect, pBrush);
     }
 
-    if (m_compareMode && m_compareStepRect.right > m_compareStepRect.left) {
+
+    if ((m_compareMode || m_overlayMode) && m_compareStepRect.right > m_compareStepRect.left) {
       D2D1_ROUNDED_RECT stepRect = D2D1::RoundedRect(
           m_compareStepRect, 6.0f * m_uiScale, 6.0f * m_uiScale);
       pRT->FillRoundedRectangle(stepRect, m_brushHover.Get());
@@ -815,14 +818,14 @@ bool Toolbar::OnMouseMove(float x, float y) {
     btn.isHovered = (btn.rect.right > 0 && x >= btn.rect.left && x < btn.rect.right && y >= btn.rect.top && y < btn.rect.bottom);
     if (btn.isHovered != wasHovered) changed = true;
   }
-  if (m_compareMode && m_compareStepRect.right > m_compareStepRect.left) {
+  if ((m_compareMode || m_overlayMode) && m_compareStepRect.right > m_compareStepRect.left) {
     if (x >= m_compareStepRect.left && x < m_compareStepRect.right && y >= m_compareStepRect.top && y < m_compareStepRect.bottom) {
       stepHover = true;
       if (x >= m_compareStepUpRect.left && x < m_compareStepUpRect.right && y >= m_compareStepUpRect.top && y < m_compareStepUpRect.bottom) stepUpHover = true;
       else if (x >= m_compareStepDownRect.left && x < m_compareStepDownRect.right && y >= m_compareStepDownRect.top && y < m_compareStepDownRect.bottom) stepDownHover = true;
     }
   }
-  if (!m_compareMode) { stepHover = stepUpHover = stepDownHover = false; }
+  if (!(m_compareMode || m_overlayMode)) { stepHover = stepUpHover = stepDownHover = false; }
   if (stepHover != m_compareStepHover || stepUpHover != m_compareStepUpHover || stepDownHover != m_compareStepDownHover) {
     changed = true;
     m_compareStepHover = stepHover; m_compareStepUpHover = stepUpHover; m_compareStepDownHover = stepDownHover;
@@ -872,7 +875,7 @@ bool Toolbar::OnClick(float x, float y, ToolbarButtonID &outId) {
   }
 
   if (HitTest(x, y)) {
-    if (m_compareMode && m_compareStepRect.right > m_compareStepRect.left) {
+    if ((m_compareMode || m_overlayMode) && m_compareStepRect.right > m_compareStepRect.left) {
       if (x >= m_compareStepUpRect.left && x < m_compareStepUpRect.right && y >= m_compareStepUpRect.top && y < m_compareStepUpRect.bottom) {
         m_compareZoomStepPercent = (std::min)(5.0f, m_compareZoomStepPercent + 0.1f);
         outId = ToolbarButtonID::None; return true;

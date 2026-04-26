@@ -134,6 +134,16 @@ void HelpOverlay::RebuildList() {
     m_items.push_back({ false, L"C", AppStrings::Help_Item_Compare });
     m_items.push_back({ false, L"Ctrl + F11", L"Span Displays (Video Wall)" });
 
+    // Section: Overlay Mode
+    std::wstring overlayText = AppStrings::Context_OverlayMode;
+    size_t oTab = overlayText.find(L'\t');
+    if (oTab != std::wstring::npos) overlayText = overlayText.substr(0, oTab);
+
+    m_items.push_back({ true, overlayText, L"" });
+    m_items.push_back({ false, L"Ctrl + Shift + O", overlayText });
+    m_items.push_back({ false, L"Alt + \x2191 / \x2193", std::wstring(AppStrings::Toolbar_Tooltip_OverlayAlphaUp) + L" / " + AppStrings::Toolbar_Tooltip_OverlayAlphaDown });
+    m_items.push_back({ false, L"Shift + Esc", AppStrings::Menu_ExitPassthrough });
+
     // Section: File Operations
     m_items.push_back({ true, L"File Operations", L"" });
     std::wstring openText = AppStrings::Context_Open;

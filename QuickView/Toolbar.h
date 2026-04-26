@@ -93,6 +93,7 @@ public:
     void SetCompareInfoState(bool active);
     void SetCompareRawState(bool anyRaw, bool selectedIsRaw, bool isFullDecode);
     float GetCompareZoomStepPercent() const { return m_compareZoomStepPercent; }
+    float GetOverlayZoomStepPercent() const { return m_compareZoomStepPercent; }
     
     // [v10.5] Animation Mode
     void SetAnimationMode(bool enabled, bool playing = true, bool dirtyRect = false, bool supportsDirtyRect = true);
@@ -155,6 +156,7 @@ private:
     D2D1_RECT_F m_compareStepUpRect = {};
     D2D1_RECT_F m_compareStepDownRect = {};
     bool m_compareStepHover = false;
+
     bool m_compareStepUpHover = false;
     bool m_compareStepDownHover = false;
     
