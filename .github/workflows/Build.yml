@@ -1,0 +1,98 @@
+name: Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        config:
+          - platform: x64
+            triplet: x64-windows-static-opt
+
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            vcpkg
+            vcpkg_installed
+            vcpkg/downloads
+          key: vcpkg-${{ runner.os }}-${{ matrix.config.triplet }}-${{ hashFiles('**/vcpkg.json') }}
+
+      - name: Bootstrap vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          .\bootstrap-vcpkg.bat
+          echo "$PWD" | Out-File -Append -Encoding utf8 -FilePath $env:GITHUB_PATH
+          echo "VCPKG_ROOT=$PWD" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          cd ..
+
+      - name: Build Release
+        run: |
+          msbuild QuickView/QuickView.sln `
+            /p:Configuration=Release `
+            /p:Platform=${{ matrix.config.platform }} `
+            /p:PlatformToolset=v143 `
+            /p:VcpkgTriplet=${{ matrix.config.triplet }} `
+            /p:VcpkgManifestEnabled=true `
+            /p:VcpkgAutoLink=true `
+            /p:UseVcpkg=true `
+            /p:VcpkgRoot="${{ env.VCPKG_ROOT }}" `
+            /p:AdditionalVcpkgOverlayPorts="./custom-ports" `
+            /p:AdditionalVcpkgOverlayTriplets="./custom-triplet" `
+            /p:WindowsTargetPlatformVersion=10.0 `
+            /m /verbosity:minimal
+
+      - name: Find QuickView
+        id: find_exe
+        shell: pwsh
+        run: |
+          $file = Get-ChildItem -Recurse -Filter *QuickView.exe* | Select-Object -First 1
+          echo "exe_path=$($file.FullName)" >> $env:GITHUB_OUTPUT
+      
+      - name: Get build date
+        id: build_date
+        shell: pwsh
+        run: |
+          $date = Get-Date -Format "yyyyMMdd-HHmmss"
+          echo "tag=$date" >> $env:GITHUB_OUTPUT
+      
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.build_date.outputs.tag }}
+          name: QuickView Build ${{ steps.build_date.outputs.tag }}
+          files: ${{ steps.find_exe.outputs.exe_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@main
+        with:
+         retain_days: 0
+         keep_minimum_runs: 0
+
+      - name: Remove old Releases
+        uses: dev-drprasad/delete-older-releases@master
+        if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+        with:
+          keep_latest: 1
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
