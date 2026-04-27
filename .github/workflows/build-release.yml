@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         # Build for both x64 and ARM64
-        platform: [x64, ARM64]
+        platform: [x64]
 
     steps:
       - name: Checkout Repository
