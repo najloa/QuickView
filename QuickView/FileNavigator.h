@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cwctype>
 #include <functional>  // for std::hash
+#include <unordered_map>
+#include <mutex>
 #include <Shlwapi.h>   // for StrCmpLogicalW
 #include "EditState.h" // for g_runtime
 #include "exif.h"      // for easyexif
@@ -30,134 +32,24 @@ public:
         if (!fs::exists(p)) return;
 
         m_files.clear();
+        m_sizes.clear();
+        m_ids.clear();
         m_currentIndex = -1;
+        m_currentDir.clear();
 
         const bool isDirectory = fs::is_directory(p);
 
         // If a directory is passed in, scan it directly. Otherwise scan the parent directory.
         fs::path dir = isDirectory ? p : p.parent_path();
         if (dir.empty()) return;
-
-        // Supported extensions (comprehensive list including RAW formats)
-        // using QuickView::SUPPORTED_EXTENSIONS from SupportedExtensions.h
+        m_currentDir = dir.wstring();
 
         try {
+            LoadSnapshot(GetOrBuildSnapshot(dir));
+        } catch (...) {
+            m_files.clear();
             m_sizes.clear();
-            
-            for (const auto& entry : fs::directory_iterator(dir)) {
-                if (entry.is_regular_file()) {
-                    std::wstring ext = entry.path().extension().wstring();
-                    std::transform(ext.begin(), ext.end(), ext.begin(), [](wchar_t c){ return std::towlower(c); });
-                    
-                    for (const auto& supp : QuickView::SUPPORTED_EXTENSIONS) {
-                        if (ext == supp) {
-                            m_files.push_back(entry.path().wstring());
-                            // Cache file size for Scout Lane decision
-                            try {
-                                m_sizes.push_back(entry.file_size());
-                            } catch (...) {
-                                m_sizes.push_back(0); // Error case
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-        } catch (...) {}
-
-        
-        struct Entry {
-            std::wstring p;
-            uintmax_t s;
-            std::filesystem::file_time_type m;
-            std::wstring t; // type (extension)
-            std::string exifDate; // EXIF DateTaken
-        };
-
-        std::vector<Entry> entries;
-        entries.reserve(m_files.size());
-        namespace fs = std::filesystem;
-        for(size_t i=0; i<m_files.size(); ++i) {
-            Entry e;
-            e.p = m_files[i];
-            e.s = m_sizes[i];
-            try {
-                e.m = fs::last_write_time(e.p);
-            } catch (...) {}
-
-            e.t = fs::path(e.p).extension().wstring();
-            std::transform(e.t.begin(), e.t.end(), e.t.begin(), [](wchar_t c){ return std::towlower(c); });
-
-            // Only parse EXIF date if specifically requested (to save load time)
-            if (g_runtime.SortOrder == 3) {
-                 FILE *fp = _wfopen(e.p.c_str(), L"rb");
-                 if (fp) {
-                     unsigned char buf[65536];
-                     size_t bytes = fread(buf, 1, sizeof(buf), fp);
-                     fclose(fp);
-                     if (bytes > 0) {
-                         easyexif::EXIFInfo info;
-                         if (info.parseFrom(buf, (unsigned)bytes) == PARSE_EXIF_SUCCESS) {
-                             e.exifDate = info.DateTimeOriginal;
-                         }
-                     }
-                 }
-            }
-
-            entries.push_back(e);
-        }
-        
-        int sortOrder = g_runtime.SortOrder;
-        bool sortDesc = g_runtime.SortDescending;
-
-        std::sort(entries.begin(), entries.end(), [sortOrder, sortDesc](const Entry& a, const Entry& b){
-            int cmp = 0;
-            switch (sortOrder) {
-                case 1: // Name
-                case 0: // Auto (Use Name Natural Sort)
-                    cmp = StrCmpLogicalW(a.p.c_str(), b.p.c_str());
-                    break;
-                case 2: // Modified
-                    if (a.m < b.m) cmp = -1;
-                    else if (a.m > b.m) cmp = 1;
-                    else cmp = StrCmpLogicalW(a.p.c_str(), b.p.c_str()); // Fallback
-                    break;
-                case 3: // Date Taken
-                    if (a.exifDate.empty() && !b.exifDate.empty()) cmp = 1; // Empty goes last
-                    else if (!a.exifDate.empty() && b.exifDate.empty()) cmp = -1;
-                    else {
-                        cmp = a.exifDate.compare(b.exifDate);
-                        if (cmp == 0) cmp = StrCmpLogicalW(a.p.c_str(), b.p.c_str());
-                    }
-                    break;
-                case 4: // Size
-                    if (a.s < b.s) cmp = -1;
-                    else if (a.s > b.s) cmp = 1;
-                    else cmp = StrCmpLogicalW(a.p.c_str(), b.p.c_str());
-                    break;
-                case 5: // Type
-                    cmp = StrCmpLogicalW(a.t.c_str(), b.t.c_str());
-                    if (cmp == 0) cmp = StrCmpLogicalW(a.p.c_str(), b.p.c_str());
-                    break;
-            }
-
-            if (sortDesc) return cmp > 0;
-            return cmp < 0;
-        });
-        
-        // Write back
-        m_files.clear();
-        m_sizes.clear();
-        for(const auto& e : entries) {
-            m_files.push_back(e.p);
-            m_sizes.push_back(e.s);
-        }
-        
-        // [ImageID] Compute stable hash IDs for all files
-        m_ids.clear();
-        m_ids.reserve(m_files.size());
-        for (const auto& f : m_files) {
-            m_ids.push_back(ComputePathHash(f));
+            m_ids.clear();
         }
 
         // Find current index
@@ -277,6 +169,10 @@ public:
                 m_sizes[m_currentIndex] = 0;
             }
         }
+
+        if (!m_currentDir.empty()) {
+            InvalidateDirectoryCache(m_currentDir);
+        }
     }
     
     // Status info
@@ -321,6 +217,228 @@ public:
     }
 
 private:
+    struct Entry {
+        std::wstring path;
+        std::wstring name;
+        std::wstring type;
+        uintmax_t size = 0;
+        std::filesystem::file_time_type modified{};
+        std::string exifDate;
+    };
+
+    struct DirectorySnapshot {
+        std::vector<std::wstring> files;
+        std::vector<uintmax_t> sizes;
+        std::vector<ImageID> ids;
+    };
+
+    struct CacheRecord {
+        std::filesystem::file_time_type directoryWriteTime{};
+        DirectorySnapshot snapshot;
+    };
+
+    struct CacheKey {
+        std::wstring directory;
+        int sortOrder = 0;
+        bool sortDescending = false;
+
+        bool operator==(const CacheKey& other) const {
+            return sortOrder == other.sortOrder
+                && sortDescending == other.sortDescending
+                && directory == other.directory;
+        }
+    };
+
+    struct CacheKeyHash {
+        size_t operator()(const CacheKey& key) const {
+            size_t h1 = std::hash<std::wstring>{}(key.directory);
+            size_t h2 = std::hash<int>{}(key.sortOrder);
+            size_t h3 = std::hash<bool>{}(key.sortDescending);
+            return h1 ^ (h2 << 1) ^ (h3 << 2);
+        }
+    };
+
+    static bool IsSupportedExtension(std::wstring ext) {
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](wchar_t c) { return std::towlower(c); });
+        for (const auto& supp : QuickView::SUPPORTED_EXTENSIONS) {
+            if (ext == supp) return true;
+        }
+        return false;
+    }
+
+    static std::string ReadExifDate(const std::wstring& path) {
+        FILE* fp = _wfopen(path.c_str(), L"rb");
+        if (!fp) return {};
+
+        unsigned char buf[65536];
+        size_t bytes = fread(buf, 1, sizeof(buf), fp);
+        fclose(fp);
+        if (bytes == 0) return {};
+
+        easyexif::EXIFInfo info;
+        if (info.parseFrom(buf, (unsigned)bytes) == PARSE_EXIF_SUCCESS) {
+            return info.DateTimeOriginal;
+        }
+        return {};
+    }
+
+    static std::filesystem::file_time_type TryGetDirectoryWriteTime(const std::filesystem::path& dir) {
+        try {
+            return std::filesystem::last_write_time(dir);
+        } catch (...) {
+            return {};
+        }
+    }
+
+    static DirectorySnapshot BuildSnapshot(const std::filesystem::path& dir, int sortOrder, bool sortDesc) {
+        namespace fs = std::filesystem;
+
+        std::vector<Entry> entries;
+        try {
+            for (const auto& entry : fs::directory_iterator(dir)) {
+                if (!entry.is_regular_file()) continue;
+
+                fs::path path = entry.path();
+                std::wstring ext = path.extension().wstring();
+                if (!IsSupportedExtension(ext)) continue;
+
+                Entry item;
+                item.path = path.wstring();
+                item.name = path.filename().wstring();
+                std::transform(ext.begin(), ext.end(), ext.begin(), [](wchar_t c) { return std::towlower(c); });
+                item.type = ext;
+
+                try {
+                    item.size = entry.file_size();
+                } catch (...) {
+                    item.size = 0;
+                }
+
+                try {
+                    item.modified = entry.last_write_time();
+                } catch (...) {}
+
+                if (sortOrder == 3) {
+                    item.exifDate = ReadExifDate(item.path);
+                }
+
+                entries.push_back(std::move(item));
+            }
+        } catch (...) {}
+
+        std::sort(entries.begin(), entries.end(), [sortOrder, sortDesc](const Entry& a, const Entry& b) {
+            int cmp = 0;
+            switch (sortOrder) {
+                case 1: // Name
+                case 0: // Auto (Use Name Natural Sort)
+                    cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+                    break;
+                case 2: // Modified
+                    if (a.modified < b.modified) cmp = -1;
+                    else if (a.modified > b.modified) cmp = 1;
+                    else cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+                    break;
+                case 3: // Date Taken
+                    if (a.exifDate.empty() && !b.exifDate.empty()) cmp = 1;
+                    else if (!a.exifDate.empty() && b.exifDate.empty()) cmp = -1;
+                    else {
+                        cmp = a.exifDate.compare(b.exifDate);
+                        if (cmp == 0) cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+                    }
+                    break;
+                case 4: // Size
+                    if (a.size < b.size) cmp = -1;
+                    else if (a.size > b.size) cmp = 1;
+                    else cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+                    break;
+                case 5: // Type
+                    cmp = StrCmpLogicalW(a.type.c_str(), b.type.c_str());
+                    if (cmp == 0) cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+                    break;
+                default:
+                    cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+                    break;
+            }
+
+            return sortDesc ? (cmp > 0) : (cmp < 0);
+        });
+
+        DirectorySnapshot snapshot;
+        snapshot.files.reserve(entries.size());
+        snapshot.sizes.reserve(entries.size());
+        snapshot.ids.reserve(entries.size());
+
+        for (const auto& entry : entries) {
+            snapshot.files.push_back(entry.path);
+            snapshot.sizes.push_back(entry.size);
+            snapshot.ids.push_back(ComputePathHash(entry.path));
+        }
+
+        return snapshot;
+    }
+
+    static DirectorySnapshot GetOrBuildSnapshot(const std::filesystem::path& dir) {
+        const CacheKey key{ dir.wstring(), g_runtime.SortOrder, g_runtime.SortDescending };
+        const auto writeTime = TryGetDirectoryWriteTime(dir);
+
+        {
+            std::lock_guard<std::mutex> lock(GetCacheMutex());
+            auto& cache = GetSnapshotCache();
+            auto it = cache.find(key);
+            if (it != cache.end() && it->second.directoryWriteTime == writeTime) {
+                return it->second.snapshot;
+            }
+        }
+
+        CacheRecord record;
+        record.directoryWriteTime = writeTime;
+        record.snapshot = BuildSnapshot(dir, key.sortOrder, key.sortDescending);
+
+        {
+            std::lock_guard<std::mutex> lock(GetCacheMutex());
+            GetSnapshotCache()[key] = record;
+            PruneCacheIfNeeded();
+        }
+
+        return record.snapshot;
+    }
+
+    static void InvalidateDirectoryCache(const std::wstring& directory) {
+        std::lock_guard<std::mutex> lock(GetCacheMutex());
+        auto& cache = GetSnapshotCache();
+        for (auto it = cache.begin(); it != cache.end(); ) {
+            if (it->first.directory == directory) {
+                it = cache.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    static std::unordered_map<CacheKey, CacheRecord, CacheKeyHash>& GetSnapshotCache() {
+        static std::unordered_map<CacheKey, CacheRecord, CacheKeyHash> cache;
+        return cache;
+    }
+
+    static void PruneCacheIfNeeded() {
+        auto& cache = GetSnapshotCache();
+        constexpr size_t kHardLimit = 64;
+        if (cache.size() > kHardLimit) {
+            cache.clear();
+        }
+    }
+
+    static std::mutex& GetCacheMutex() {
+        static std::mutex mtx;
+        return mtx;
+    }
+
+    void LoadSnapshot(const DirectorySnapshot& snapshot) {
+        m_files = snapshot.files;
+        m_sizes = snapshot.sizes;
+        m_ids = snapshot.ids;
+    }
+
     std::wstring FindAdjacentFolderImage(bool next) {
         if (m_files.empty()) return L"";
 
@@ -398,6 +516,7 @@ private:
     std::vector<std::wstring> m_files;
     std::vector<uintmax_t> m_sizes;
     std::vector<ImageID> m_ids;  // [ImageID] Precomputed path hashes
+    std::wstring m_currentDir;
     int m_currentIndex = -1;
     bool m_hitEnd = false;
     std::wstring m_crossFolderMessage;
