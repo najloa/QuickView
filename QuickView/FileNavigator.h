@@ -307,6 +307,58 @@ private:
         std::string exifDate;
     };
 
+    struct EntryLess {
+        int sortOrder = 0;
+        bool sortDescending = false;
+
+        EntryLess(int order, bool descending) : sortOrder(order), sortDescending(descending) {}
+
+        static int CompareNaturalName(const Entry& a, const Entry& b) {
+            return StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+        }
+
+        int Compare(const Entry& a, const Entry& b) const {
+            int cmp = 0;
+            switch (sortOrder) {
+                case 1: // Name
+                case 0: // Auto (Use Name Natural Sort)
+                    cmp = CompareNaturalName(a, b);
+                    break;
+                case 2: // Modified
+                    if (a.modifiedTicks < b.modifiedTicks) cmp = -1;
+                    else if (a.modifiedTicks > b.modifiedTicks) cmp = 1;
+                    else cmp = CompareNaturalName(a, b);
+                    break;
+                case 3: // Date Taken
+                    if (a.exifDate.empty() && !b.exifDate.empty()) cmp = 1;
+                    else if (!a.exifDate.empty() && b.exifDate.empty()) cmp = -1;
+                    else {
+                        cmp = a.exifDate.compare(b.exifDate);
+                        if (cmp == 0) cmp = CompareNaturalName(a, b);
+                    }
+                    break;
+                case 4: // Size
+                    if (a.size < b.size) cmp = -1;
+                    else if (a.size > b.size) cmp = 1;
+                    else cmp = CompareNaturalName(a, b);
+                    break;
+                case 5: // Type
+                    cmp = StrCmpLogicalW(a.type.c_str(), b.type.c_str());
+                    if (cmp == 0) cmp = CompareNaturalName(a, b);
+                    break;
+                default:
+                    cmp = CompareNaturalName(a, b);
+                    break;
+            }
+            return cmp;
+        }
+
+        bool operator()(const Entry& a, const Entry& b) const {
+            const int cmp = Compare(a, b);
+            return sortDescending ? (cmp > 0) : (cmp < 0);
+        }
+    };
+
     struct DirectorySnapshot {
         std::vector<std::wstring> files;
         std::vector<uintmax_t> sizes;
@@ -459,42 +511,7 @@ private:
     }
 
     static DirectorySnapshot BuildSnapshotFromEntries(std::vector<Entry>& entries, int sortOrder, bool sortDesc) {
-        std::sort(entries.begin(), entries.end(), [sortOrder, sortDesc](const Entry& a, const Entry& b) {
-            int cmp = 0;
-            switch (sortOrder) {
-                case 1: // Name
-                case 0: // Auto (Use Name Natural Sort)
-                    cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
-                    break;
-                case 2: // Modified
-                    if (a.modifiedTicks < b.modifiedTicks) cmp = -1;
-                    else if (a.modifiedTicks > b.modifiedTicks) cmp = 1;
-                    else cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
-                    break;
-                case 3: // Date Taken
-                    if (a.exifDate.empty() && !b.exifDate.empty()) cmp = 1;
-                    else if (!a.exifDate.empty() && b.exifDate.empty()) cmp = -1;
-                    else {
-                        cmp = a.exifDate.compare(b.exifDate);
-                        if (cmp == 0) cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
-                    }
-                    break;
-                case 4: // Size
-                    if (a.size < b.size) cmp = -1;
-                    else if (a.size > b.size) cmp = 1;
-                    else cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
-                    break;
-                case 5: // Type
-                    cmp = StrCmpLogicalW(a.type.c_str(), b.type.c_str());
-                    if (cmp == 0) cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
-                    break;
-                default:
-                    cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
-                    break;
-            }
-
-            return sortDesc ? (cmp > 0) : (cmp < 0);
-        });
+        std::sort(entries.begin(), entries.end(), EntryLess(sortOrder, sortDesc));
 
         DirectorySnapshot snapshot;
         snapshot.files.reserve(entries.size());
@@ -756,34 +773,7 @@ private:
         auto flushWindow = [&]() {
             if (windowEntries.empty()) return;
 
-            std::sort(windowEntries.begin(), windowEntries.end(), [partialSortOrder, sortDescending](const Entry& a, const Entry& b) {
-                int cmp = 0;
-                switch (partialSortOrder) {
-                    case 1:
-                    case 0:
-                        cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
-                        break;
-                    case 2:
-                        if (a.modifiedTicks < b.modifiedTicks) cmp = -1;
-                        else if (a.modifiedTicks > b.modifiedTicks) cmp = 1;
-                        else cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
-                        break;
-                    case 4:
-                        if (a.size < b.size) cmp = -1;
-                        else if (a.size > b.size) cmp = 1;
-                        else cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
-                        break;
-                    case 5:
-                        cmp = StrCmpLogicalW(a.type.c_str(), b.type.c_str());
-                        if (cmp == 0) cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
-                        break;
-                    default:
-                        cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
-                        break;
-                }
-
-                return sortDescending ? (cmp > 0) : (cmp < 0);
-            });
+            std::sort(windowEntries.begin(), windowEntries.end(), EntryLess(partialSortOrder, sortDescending));
 
             for (size_t offset = 0; offset < windowEntries.size(); offset += kBatchSize) {
                 size_t end = std::min(offset + kBatchSize, windowEntries.size());
