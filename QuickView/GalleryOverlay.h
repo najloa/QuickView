@@ -57,6 +57,7 @@ private:
     
     int m_selectedIndex = -1;
     int m_hoverIndex = -1;
+    float m_viewportHeight = 0.0f;
     
     // Constants
     const float GAP = 12.0f;
@@ -75,5 +76,6 @@ private:
     ComPtr<ID2D1SolidColorBrush> m_brushTextBg;
 
     void EnsureVisible(int index);
+    void ClampScroll();
     int HitTest(float x, float y);
 };
