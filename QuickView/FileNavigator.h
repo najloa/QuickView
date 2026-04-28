@@ -723,9 +723,10 @@ private:
     void BuildIncrementalBatches(const std::filesystem::path& dir, uint64_t token, int partialSortOrder, bool sortDescending) {
         constexpr size_t kBatchSize = 256;
         constexpr size_t kInitialCount = 512;
+        constexpr size_t kWindowSize = 2048;
 
-        std::vector<Entry> batchEntries;
-        batchEntries.reserve(kBatchSize);
+        std::vector<Entry> windowEntries;
+        windowEntries.reserve(kWindowSize);
         size_t emittedCount = 0;
 
         const std::wstring searchPattern = (dir / L"*").wstring();
@@ -742,11 +743,7 @@ private:
             return;
         }
 
-        auto flushBatch = [&]() {
-            if (batchEntries.empty()) return;
-            DirectorySnapshot batch = BuildSnapshotFromEntries(batchEntries, partialSortOrder, sortDescending);
-            batchEntries.clear();
-
+        auto enqueueBatch = [&](DirectorySnapshot&& batch) {
             if (token != m_upgradeToken.load(std::memory_order_acquire)) {
                 return;
             }
@@ -754,6 +751,60 @@ private:
             std::lock_guard<std::mutex> lock(m_pendingMutex);
             m_pendingBatches.push_back(std::move(batch));
             m_hasPendingAppend.store(true, std::memory_order_release);
+        };
+
+        auto flushWindow = [&]() {
+            if (windowEntries.empty()) return;
+
+            std::sort(windowEntries.begin(), windowEntries.end(), [partialSortOrder, sortDescending](const Entry& a, const Entry& b) {
+                int cmp = 0;
+                switch (partialSortOrder) {
+                    case 1:
+                    case 0:
+                        cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+                        break;
+                    case 2:
+                        if (a.modifiedTicks < b.modifiedTicks) cmp = -1;
+                        else if (a.modifiedTicks > b.modifiedTicks) cmp = 1;
+                        else cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+                        break;
+                    case 4:
+                        if (a.size < b.size) cmp = -1;
+                        else if (a.size > b.size) cmp = 1;
+                        else cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+                        break;
+                    case 5:
+                        cmp = StrCmpLogicalW(a.type.c_str(), b.type.c_str());
+                        if (cmp == 0) cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+                        break;
+                    default:
+                        cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
+                        break;
+                }
+
+                return sortDescending ? (cmp > 0) : (cmp < 0);
+            });
+
+            for (size_t offset = 0; offset < windowEntries.size(); offset += kBatchSize) {
+                size_t end = std::min(offset + kBatchSize, windowEntries.size());
+                DirectorySnapshot batch;
+                batch.files.reserve(end - offset);
+                batch.sizes.reserve(end - offset);
+                batch.ids.reserve(end - offset);
+
+                for (size_t i = offset; i < end; ++i) {
+                    batch.files.push_back(windowEntries[i].path);
+                    batch.sizes.push_back(windowEntries[i].size);
+                    batch.ids.push_back(ComputePathHash(windowEntries[i].path));
+                }
+
+                enqueueBatch(std::move(batch));
+                if (token != m_upgradeToken.load(std::memory_order_acquire)) {
+                    break;
+                }
+            }
+
+            windowEntries.clear();
         };
 
         do {
@@ -774,16 +825,16 @@ private:
             item.type = ext;
             item.size = (static_cast<uint64_t>(findData.nFileSizeHigh) << 32) | findData.nFileSizeLow;
             item.modifiedTicks = FileTimeToUint64(findData.ftLastWriteTime);
-            batchEntries.push_back(std::move(item));
+            windowEntries.push_back(std::move(item));
 
-            if (batchEntries.size() >= kBatchSize) {
-                flushBatch();
+            if (windowEntries.size() >= kWindowSize) {
+                flushWindow();
                 if (token != m_upgradeToken.load(std::memory_order_acquire)) break;
             }
         } while (FindNextFileW(findHandle, &findData));
 
         FindClose(findHandle);
-        flushBatch();
+        flushWindow();
     }
 
     std::wstring FindAdjacentFolderImage(bool next) {
