@@ -8,6 +8,9 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <mutex>
+#include <memory>
+#include <thread>
+#include <atomic>
 #include <Windows.h>
 #include <Shlwapi.h>   // for StrCmpLogicalW
 #include "EditState.h" // for g_runtime
@@ -28,11 +31,12 @@ inline ImageID ComputePathHash(const std::wstring& path) {
 
 class FileNavigator {
 public:
-    void Initialize(const std::wstring& currentPath) {
+    void Initialize(const std::wstring& currentPath, bool allowAsync = true) {
         namespace fs = std::filesystem;
         fs::path p(currentPath);
         if (!fs::exists(p)) return;
 
+        CancelPendingUpgrade();
         m_files.clear();
         m_sizes.clear();
         m_ids.clear();
@@ -47,7 +51,19 @@ public:
         m_currentDir = dir.wstring();
 
         try {
-            LoadSnapshot(GetOrBuildSnapshot(dir));
+            if (g_runtime.SortOrder == 3) {
+                DirectorySnapshot fullSnapshot;
+                if (TryGetCachedSnapshot(dir, g_runtime.SortOrder, g_runtime.SortDescending, fullSnapshot)) {
+                    LoadSnapshot(fullSnapshot);
+                } else if (allowAsync) {
+                    LoadSnapshot(GetOrBuildSnapshot(dir, 0, g_runtime.SortDescending));
+                    StartAsyncUpgrade(dir, isDirectory);
+                } else {
+                    LoadSnapshot(GetOrBuildSnapshot(dir));
+                }
+            } else {
+                LoadSnapshot(GetOrBuildSnapshot(dir));
+            }
         } catch (...) {
             m_files.clear();
             m_sizes.clear();
@@ -181,6 +197,7 @@ public:
     // Status info
     size_t Count() const { return m_files.size(); }
     int Index() const { return m_currentIndex; }
+    bool HasPendingUpgrade() const { return m_hasPendingUpgrade.load(std::memory_order_acquire); }
 
     // Random Access (For Gallery Virtualization)
     const std::wstring& GetFile(int index) const {
@@ -218,6 +235,35 @@ public:
         return ComputePathHash(path);
     }
 
+    bool ApplyPendingUpgradeIfReady() {
+        std::shared_ptr<PendingUpgrade> pending;
+        {
+            std::lock_guard<std::mutex> lock(m_pendingMutex);
+            pending = m_pendingUpgrade;
+            if (!pending || !pending->ready.load(std::memory_order_acquire)) {
+                return false;
+            }
+            if (pending->token != m_upgradeToken.load(std::memory_order_acquire)) {
+                m_pendingUpgrade.reset();
+                m_hasPendingUpgrade.store(false, std::memory_order_release);
+                return false;
+            }
+        }
+
+        const std::wstring currentPath = GetCurrentPath();
+        LoadSnapshot(*pending->snapshot);
+        RecomputeCurrentIndex(currentPath);
+
+        {
+            std::lock_guard<std::mutex> lock(m_pendingMutex);
+            if (m_pendingUpgrade == pending) {
+                m_pendingUpgrade.reset();
+            }
+        }
+        m_hasPendingUpgrade.store(false, std::memory_order_release);
+        return true;
+    }
+
 private:
     struct Entry {
         std::wstring path;
@@ -242,6 +288,12 @@ private:
     struct FolderCacheRecord {
         uint64_t directoryWriteTime = 0;
         std::vector<std::wstring> folders;
+    };
+
+    struct PendingUpgrade {
+        uint64_t token = 0;
+        std::shared_ptr<DirectorySnapshot> snapshot;
+        std::atomic<bool> ready = false;
     };
 
     struct CacheKey {
@@ -409,30 +461,41 @@ private:
         return snapshot;
     }
 
-    static DirectorySnapshot GetOrBuildSnapshot(const std::filesystem::path& dir) {
-        const CacheKey key{ dir.wstring(), g_runtime.SortOrder, g_runtime.SortDescending };
+    static bool TryGetCachedSnapshot(const std::filesystem::path& dir, int sortOrder, bool sortDesc, DirectorySnapshot& out) {
+        const CacheKey key{ dir.wstring(), sortOrder, sortDesc };
         const auto writeTime = TryGetDirectoryWriteTime(dir);
 
-        {
-            std::lock_guard<std::mutex> lock(GetCacheMutex());
-            auto& cache = GetSnapshotCache();
-            auto it = cache.find(key);
-            if (it != cache.end() && it->second.directoryWriteTime == writeTime) {
-                return it->second.snapshot;
-            }
+        std::lock_guard<std::mutex> lock(GetCacheMutex());
+        auto& cache = GetSnapshotCache();
+        auto it = cache.find(key);
+        if (it != cache.end() && it->second.directoryWriteTime == writeTime) {
+            out = it->second.snapshot;
+            return true;
+        }
+        return false;
+    }
+
+    static DirectorySnapshot GetOrBuildSnapshot(const std::filesystem::path& dir, int sortOrder, bool sortDesc) {
+        DirectorySnapshot cached;
+        if (TryGetCachedSnapshot(dir, sortOrder, sortDesc, cached)) {
+            return cached;
         }
 
         CacheRecord record;
-        record.directoryWriteTime = writeTime;
-        record.snapshot = BuildSnapshot(dir, key.sortOrder, key.sortDescending);
+        record.directoryWriteTime = TryGetDirectoryWriteTime(dir);
+        record.snapshot = BuildSnapshot(dir, sortOrder, sortDesc);
 
         {
             std::lock_guard<std::mutex> lock(GetCacheMutex());
-            GetSnapshotCache()[key] = record;
+            GetSnapshotCache()[CacheKey{ dir.wstring(), sortOrder, sortDesc }] = record;
             PruneCacheIfNeeded();
         }
 
         return record.snapshot;
+    }
+
+    static DirectorySnapshot GetOrBuildSnapshot(const std::filesystem::path& dir) {
+        return GetOrBuildSnapshot(dir, g_runtime.SortOrder, g_runtime.SortDescending);
     }
 
     static std::vector<std::wstring> EnumerateDirectoriesSorted(const std::filesystem::path& dir) {
@@ -544,6 +607,64 @@ private:
         m_ids = snapshot.ids;
     }
 
+    std::wstring GetCurrentPath() const {
+        if (m_currentIndex >= 0 && m_currentIndex < (int)m_files.size()) {
+            return m_files[m_currentIndex];
+        }
+        return {};
+    }
+
+    void RecomputeCurrentIndex(const std::wstring& preferredPath) {
+        if (!preferredPath.empty()) {
+            for (size_t i = 0; i < m_files.size(); ++i) {
+                if (m_files[i] == preferredPath) {
+                    m_currentIndex = (int)i;
+                    return;
+                }
+            }
+        }
+        if (m_files.empty()) {
+            m_currentIndex = -1;
+        } else if (m_currentIndex >= (int)m_files.size()) {
+            m_currentIndex = (int)m_files.size() - 1;
+        }
+    }
+
+    void CancelPendingUpgrade() {
+        m_upgradeToken.fetch_add(1, std::memory_order_acq_rel);
+        std::lock_guard<std::mutex> lock(m_pendingMutex);
+        m_pendingUpgrade.reset();
+        m_hasPendingUpgrade.store(false, std::memory_order_release);
+    }
+
+    void StartAsyncUpgrade(const std::filesystem::path& dir, bool isDirectory) {
+        if (isDirectory && m_files.empty()) return;
+        if (!isDirectory && m_files.empty()) return;
+
+        auto pending = std::make_shared<PendingUpgrade>();
+        pending->snapshot = std::make_shared<DirectorySnapshot>();
+        pending->token = m_upgradeToken.load(std::memory_order_acquire);
+
+        {
+            std::lock_guard<std::mutex> lock(m_pendingMutex);
+            m_pendingUpgrade = pending;
+        }
+        m_hasPendingUpgrade.store(true, std::memory_order_release);
+
+        const int sortOrder = g_runtime.SortOrder;
+        const bool sortDescending = g_runtime.SortDescending;
+
+        std::thread([this, pending, dir, sortOrder, sortDescending]() {
+            DirectorySnapshot snapshot = GetOrBuildSnapshot(dir, sortOrder, sortDescending);
+            if (pending->token != m_upgradeToken.load(std::memory_order_acquire)) {
+                return;
+            }
+
+            *pending->snapshot = std::move(snapshot);
+            pending->ready.store(true, std::memory_order_release);
+        }).detach();
+    }
+
     std::wstring FindAdjacentFolderImage(bool next) {
         if (m_files.empty()) return L"";
 
@@ -557,7 +678,7 @@ private:
             if (!subfolders.empty()) {
                 for (const auto& sub : subfolders) {
                     FileNavigator tempNav;
-                    tempNav.Initialize(sub);
+                    tempNav.Initialize(sub, false);
                     if (tempNav.Count() > 0) return tempNav.First();
                 }
             }
@@ -592,7 +713,7 @@ private:
             if (idx == startIdx) break; // Wrapped full circle and found nothing
 
             FileNavigator tempNav;
-            tempNav.Initialize(folders[idx]);
+            tempNav.Initialize(folders[idx], false);
             if (tempNav.Count() > 0) {
                  return next ? tempNav.First() : tempNav.Last();
             }
@@ -605,6 +726,10 @@ private:
     std::vector<uintmax_t> m_sizes;
     std::vector<ImageID> m_ids;  // [ImageID] Precomputed path hashes
     std::wstring m_currentDir;
+    std::atomic<uint64_t> m_upgradeToken{ 1 };
+    std::atomic<bool> m_hasPendingUpgrade{ false };
+    mutable std::mutex m_pendingMutex;
+    std::shared_ptr<PendingUpgrade> m_pendingUpgrade;
     int m_currentIndex = -1;
     bool m_hitEnd = false;
     std::wstring m_crossFolderMessage;
