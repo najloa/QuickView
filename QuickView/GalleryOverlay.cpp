@@ -37,7 +37,27 @@ void GalleryOverlay::Open(int currentIndex) {
 
 void GalleryOverlay::SyncSelectedIndex(int index) {
     if (!m_isVisible) return;
+    if (index < 0) return;
+
+    float previousOffset = 0.0f;
+    bool hadAnchor = false;
+    if (m_selectedIndex >= 0 && m_cellHeight > 0 && m_cols > 0) {
+        int oldRow = m_selectedIndex / m_cols;
+        float oldTop = PADDING + oldRow * (m_cellHeight + GAP);
+        previousOffset = oldTop - m_scrollTop;
+        hadAnchor = true;
+    }
+
     m_selectedIndex = index;
+
+    if (hadAnchor && m_cellHeight > 0 && m_cols > 0) {
+        int newRow = m_selectedIndex / m_cols;
+        float newTop = PADDING + newRow * (m_cellHeight + GAP);
+        m_scrollTop = newTop - previousOffset;
+        ClampScroll();
+    } else {
+        EnsureVisible(m_selectedIndex);
+    }
 }
 
 void GalleryOverlay::Close(bool keepSelection) {
@@ -56,20 +76,27 @@ void GalleryOverlay::Update(float deltaTime) {
 }
 
 void GalleryOverlay::EnsureVisible(int index) {
-    if (index < 0 || m_cellHeight <= 0) return;
-    
+    if (index < 0 || m_cellHeight <= 0 || m_cols <= 0 || m_viewportHeight <= 0) return;
+
     int row = index / m_cols;
     float itemTop = PADDING + row * (m_cellHeight + GAP);
     float itemBottom = itemTop + m_cellHeight;
-    
-    // Current Viewport
+
     float viewTop = m_scrollTop;
-    float viewBottom = m_scrollTop + m_totalHeight; // Wait, m_totalHeight is content height. ViewHeight is screen height.
-    // We need screen height.
-    // Let's rely on Render to clamp. 
-    // Here we just adjust m_scrollTop.
-    // We need D2D size here? 
-    // Let's store last known viewport height.
+    float viewBottom = m_scrollTop + m_viewportHeight;
+
+    if (itemTop < viewTop) {
+        m_scrollTop = itemTop - GAP;
+    } else if (itemBottom > viewBottom) {
+        m_scrollTop = itemBottom - m_viewportHeight + GAP;
+    }
+
+    ClampScroll();
+}
+
+void GalleryOverlay::ClampScroll() {
+    if (m_scrollTop < 0.0f) m_scrollTop = 0.0f;
+    if (m_scrollTop > m_maxScroll) m_scrollTop = m_maxScroll;
 }
 
 // Helper to center crop
@@ -134,6 +161,7 @@ void GalleryOverlay::Render(ID2D1DeviceContext* pDC, const D2D1_SIZE_F& size) {
     
     size_t count = m_pNav->Count();
     if (count == 0) return;
+    m_viewportHeight = size.height;
     
     // Layout Calculation
     float availWidth = size.width - PADDING * 2;
@@ -150,6 +178,7 @@ void GalleryOverlay::Render(ID2D1DeviceContext* pDC, const D2D1_SIZE_F& size) {
     int rows = (int)((count + m_cols - 1) / m_cols);
     m_totalHeight = PADDING * 2 + rows * (m_cellHeight + GAP) - GAP;
     m_maxScroll = std::max(0.0f, m_totalHeight - size.height);
+    ClampScroll();
     
     // Smart Reveal (First Frame Logic)
     static bool firstFrame = true; // Use member if re-opening needs this. m_opacity < 0.1f implies just opened.
@@ -292,9 +321,7 @@ bool GalleryOverlay::OnMouseWheel(int delta) {
     if (!m_isVisible) return false;
     float scrollSpeed = 60.0f; // Pixels per detent
     m_scrollTop -= (delta / 120.0f) * scrollSpeed * 3.0f; // 3x speed for "Smooth/Fast" feel
-    
-    if (m_scrollTop < 0) m_scrollTop = 0;
-    if (m_scrollTop > m_maxScroll) m_scrollTop = m_maxScroll;
+    ClampScroll();
     return true;
 }
 
@@ -329,19 +356,7 @@ bool GalleryOverlay::OnKeyDown(UINT key) {
         case VK_END: m_selectedIndex = (int)m_pNav->Count() - 1; break;
     }
     
-    // Auto-scroll to selection
-    if (m_selectedIndex >= 0) {
-        int row = m_selectedIndex / m_cols;
-        float itemTop = PADDING + row * (m_cellHeight + GAP);
-        float itemBottom = itemTop + m_cellHeight;
-        
-        // Assume screen height (need to track it or guess)
-        // Best effort: we need to persist viewHeight to do this logic here. 
-        // Let's assume OnMouseWheel/Render updates m_maxScroll logic using viewHeight, 
-        // but we don't have it here. We can just invalidate and let specific EnsureVisible logic defined in Render/Update handle it?
-        // Or better: In Render, if selected is out of view, scroll to it?
-        // Let's implement simple "Scroll To Selection" in Render if input changed selection.
-    }
+    EnsureVisible(m_selectedIndex);
     return true;
 }
 
