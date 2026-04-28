@@ -51,7 +51,15 @@ public:
         m_currentDir = dir.wstring();
 
         try {
-            if (g_runtime.SortOrder == 3) {
+            if (isDirectory && allowAsync) {
+                DirectorySnapshot fullSnapshot;
+                if (TryGetCachedSnapshot(dir, g_runtime.SortOrder, g_runtime.SortDescending, fullSnapshot)) {
+                    LoadSnapshot(fullSnapshot);
+                } else {
+                    LoadSnapshot(BuildPartialSnapshot(dir, g_runtime.SortOrder, g_runtime.SortDescending, 512));
+                    StartAsyncUpgrade(dir, true);
+                }
+            } else if (g_runtime.SortOrder == 3) {
                 DirectorySnapshot fullSnapshot;
                 if (TryGetCachedSnapshot(dir, g_runtime.SortOrder, g_runtime.SortDescending, fullSnapshot)) {
                     LoadSnapshot(fullSnapshot);
@@ -370,6 +378,19 @@ private:
         namespace fs = std::filesystem;
 
         std::vector<Entry> entries;
+        EnumerateEntries(dir, sortOrder, SIZE_MAX, entries);
+        return BuildSnapshotFromEntries(entries, sortOrder, sortDesc);
+    }
+
+    static DirectorySnapshot BuildPartialSnapshot(const std::filesystem::path& dir, int sortOrder, bool sortDesc, size_t limit) {
+        std::vector<Entry> entries;
+        const int partialSortOrder = (sortOrder == 3) ? 0 : sortOrder;
+        EnumerateEntries(dir, partialSortOrder, limit, entries);
+        return BuildSnapshotFromEntries(entries, partialSortOrder, sortDesc);
+    }
+
+    static void EnumerateEntries(const std::filesystem::path& dir, int sortOrder, size_t limit, std::vector<Entry>& entries) {
+        namespace fs = std::filesystem;
         const std::wstring searchPattern = (dir / L"*").wstring();
 
         WIN32_FIND_DATAW findData{};
@@ -382,7 +403,7 @@ private:
             FIND_FIRST_EX_LARGE_FETCH);
 
         if (findHandle == INVALID_HANDLE_VALUE) {
-            return {};
+            return;
         }
 
         do {
@@ -406,10 +427,13 @@ private:
             }
 
             entries.push_back(std::move(item));
+            if (entries.size() >= limit) break;
         } while (FindNextFileW(findHandle, &findData));
 
         FindClose(findHandle);
+    }
 
+    static DirectorySnapshot BuildSnapshotFromEntries(std::vector<Entry>& entries, int sortOrder, bool sortDesc) {
         std::sort(entries.begin(), entries.end(), [sortOrder, sortDesc](const Entry& a, const Entry& b) {
             int cmp = 0;
             switch (sortOrder) {
@@ -638,7 +662,6 @@ private:
     }
 
     void StartAsyncUpgrade(const std::filesystem::path& dir, bool isDirectory) {
-        if (isDirectory && m_files.empty()) return;
         if (!isDirectory && m_files.empty()) return;
 
         auto pending = std::make_shared<PendingUpgrade>();
