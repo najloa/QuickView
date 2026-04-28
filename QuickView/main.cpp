@@ -3441,7 +3441,7 @@ static void ShowGallery(HWND hwnd) {
 }
 
 static void SyncNavigatorUpgradeTimer(HWND hwnd) {
-    if (g_navigator.HasPendingUpgrade()) {
+    if (g_navigator.HasPendingUpgrade() || g_navigator.HasPendingAppend()) {
         SetTimer(hwnd, TIMER_ID_NAVIGATOR_UPGRADE, 33, nullptr);
     } else {
         KillTimer(hwnd, TIMER_ID_NAVIGATOR_UPGRADE);
@@ -7582,14 +7582,26 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
         }
 
         if (wParam == TIMER_ID_NAVIGATOR_UPGRADE) {
+            bool changed = false;
+
+            if (g_navigator.ApplyPendingAppendBatch()) {
+                changed = true;
+                if (g_gallery.IsVisible()) {
+                    RequestRepaint(PaintLayer::Gallery);
+                }
+            }
+
             if (g_navigator.ApplyPendingUpgradeIfReady()) {
+                changed = true;
                 if (g_gallery.IsVisible()) {
                     g_gallery.SyncSelectedIndex(g_navigator.Index());
                 }
                 RequestRepaint(PaintLayer::All);
+            } else if (changed && !g_gallery.IsVisible()) {
+                RequestRepaint(PaintLayer::All);
             }
 
-            if (!g_navigator.HasPendingUpgrade()) {
+            if (!g_navigator.HasPendingUpgrade() && !g_navigator.HasPendingAppend()) {
                 KillTimer(hwnd, TIMER_ID_NAVIGATOR_UPGRADE);
             }
         }
