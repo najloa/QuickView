@@ -35,6 +35,11 @@ void GalleryOverlay::Open(int currentIndex) {
     // Smart Reveal scroll adjustment happens in Render() when m_opacity < 0.2f
 }
 
+void GalleryOverlay::SyncSelectedIndex(int index) {
+    if (!m_isVisible) return;
+    m_selectedIndex = index;
+}
+
 void GalleryOverlay::Close(bool keepSelection) {
     m_isVisible = false;
     if (!keepSelection) {
