@@ -11,6 +11,7 @@
 #include <memory>
 #include <thread>
 #include <atomic>
+#include <deque>
 #include <Windows.h>
 #include <Shlwapi.h>   // for StrCmpLogicalW
 #include "EditState.h" // for g_runtime
@@ -206,6 +207,7 @@ public:
     size_t Count() const { return m_files.size(); }
     int Index() const { return m_currentIndex; }
     bool HasPendingUpgrade() const { return m_hasPendingUpgrade.load(std::memory_order_acquire); }
+    bool HasPendingAppend() const { return m_hasPendingAppend.load(std::memory_order_acquire); }
 
     // Random Access (For Gallery Virtualization)
     const std::wstring& GetFile(int index) const {
@@ -267,8 +269,31 @@ public:
             if (m_pendingUpgrade == pending) {
                 m_pendingUpgrade.reset();
             }
+            m_pendingBatches.clear();
         }
+        m_hasPendingAppend.store(false, std::memory_order_release);
         m_hasPendingUpgrade.store(false, std::memory_order_release);
+        return true;
+    }
+
+    bool ApplyPendingAppendBatch() {
+        DirectorySnapshot batch;
+        {
+            std::lock_guard<std::mutex> lock(m_pendingMutex);
+            if (m_pendingBatches.empty()) {
+                return false;
+            }
+
+            batch = std::move(m_pendingBatches.front());
+            m_pendingBatches.pop_front();
+            if (m_pendingBatches.empty()) {
+                m_hasPendingAppend.store(false, std::memory_order_release);
+            }
+        }
+
+        m_files.insert(m_files.end(), batch.files.begin(), batch.files.end());
+        m_sizes.insert(m_sizes.end(), batch.sizes.begin(), batch.sizes.end());
+        m_ids.insert(m_ids.end(), batch.ids.begin(), batch.ids.end());
         return true;
     }
 
@@ -658,6 +683,8 @@ private:
         m_upgradeToken.fetch_add(1, std::memory_order_acq_rel);
         std::lock_guard<std::mutex> lock(m_pendingMutex);
         m_pendingUpgrade.reset();
+        m_pendingBatches.clear();
+        m_hasPendingAppend.store(false, std::memory_order_release);
         m_hasPendingUpgrade.store(false, std::memory_order_release);
     }
 
@@ -676,8 +703,13 @@ private:
 
         const int sortOrder = g_runtime.SortOrder;
         const bool sortDescending = g_runtime.SortDescending;
+        const int partialSortOrder = (sortOrder == 3) ? 0 : sortOrder;
 
-        std::thread([this, pending, dir, sortOrder, sortDescending]() {
+        std::thread([this, pending, dir, sortOrder, sortDescending, partialSortOrder, isDirectory]() {
+            if (isDirectory) {
+                BuildIncrementalBatches(dir, pending->token, partialSortOrder, sortDescending);
+            }
+
             DirectorySnapshot snapshot = GetOrBuildSnapshot(dir, sortOrder, sortDescending);
             if (pending->token != m_upgradeToken.load(std::memory_order_acquire)) {
                 return;
@@ -686,6 +718,72 @@ private:
             *pending->snapshot = std::move(snapshot);
             pending->ready.store(true, std::memory_order_release);
         }).detach();
+    }
+
+    void BuildIncrementalBatches(const std::filesystem::path& dir, uint64_t token, int partialSortOrder, bool sortDescending) {
+        constexpr size_t kBatchSize = 256;
+        constexpr size_t kInitialCount = 512;
+
+        std::vector<Entry> batchEntries;
+        batchEntries.reserve(kBatchSize);
+        size_t emittedCount = 0;
+
+        const std::wstring searchPattern = (dir / L"*").wstring();
+        WIN32_FIND_DATAW findData{};
+        HANDLE findHandle = FindFirstFileExW(
+            searchPattern.c_str(),
+            FindExInfoBasic,
+            &findData,
+            FindExSearchNameMatch,
+            nullptr,
+            FIND_FIRST_EX_LARGE_FETCH);
+
+        if (findHandle == INVALID_HANDLE_VALUE) {
+            return;
+        }
+
+        auto flushBatch = [&]() {
+            if (batchEntries.empty()) return;
+            DirectorySnapshot batch = BuildSnapshotFromEntries(batchEntries, partialSortOrder, sortDescending);
+            batchEntries.clear();
+
+            if (token != m_upgradeToken.load(std::memory_order_acquire)) {
+                return;
+            }
+
+            std::lock_guard<std::mutex> lock(m_pendingMutex);
+            m_pendingBatches.push_back(std::move(batch));
+            m_hasPendingAppend.store(true, std::memory_order_release);
+        };
+
+        do {
+            if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) continue;
+
+            std::wstring name = findData.cFileName;
+            std::filesystem::path path = dir / name;
+            std::wstring ext = path.extension().wstring();
+            if (!IsSupportedExtension(ext)) continue;
+
+            ++emittedCount;
+            if (emittedCount <= kInitialCount) continue;
+
+            Entry item;
+            item.path = path.wstring();
+            item.name = std::move(name);
+            std::transform(ext.begin(), ext.end(), ext.begin(), [](wchar_t c) { return std::towlower(c); });
+            item.type = ext;
+            item.size = (static_cast<uint64_t>(findData.nFileSizeHigh) << 32) | findData.nFileSizeLow;
+            item.modifiedTicks = FileTimeToUint64(findData.ftLastWriteTime);
+            batchEntries.push_back(std::move(item));
+
+            if (batchEntries.size() >= kBatchSize) {
+                flushBatch();
+                if (token != m_upgradeToken.load(std::memory_order_acquire)) break;
+            }
+        } while (FindNextFileW(findHandle, &findData));
+
+        FindClose(findHandle);
+        flushBatch();
     }
 
     std::wstring FindAdjacentFolderImage(bool next) {
@@ -750,9 +848,11 @@ private:
     std::vector<ImageID> m_ids;  // [ImageID] Precomputed path hashes
     std::wstring m_currentDir;
     std::atomic<uint64_t> m_upgradeToken{ 1 };
+    std::atomic<bool> m_hasPendingAppend{ false };
     std::atomic<bool> m_hasPendingUpgrade{ false };
     mutable std::mutex m_pendingMutex;
     std::shared_ptr<PendingUpgrade> m_pendingUpgrade;
+    std::deque<DirectorySnapshot> m_pendingBatches;
     int m_currentIndex = -1;
     bool m_hitEnd = false;
     std::wstring m_crossFolderMessage;
