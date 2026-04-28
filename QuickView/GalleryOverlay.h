@@ -29,6 +29,7 @@ public:
     
     // Returns selected index when closed via Enter/Click
     int GetSelectedIndex() const { return m_selectedIndex; }
+    void SyncSelectedIndex(int index);
     
     // Calculate thumbnail index from client coordinates
     int HitTestClient(int x, int y);
