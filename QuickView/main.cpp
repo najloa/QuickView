@@ -171,6 +171,7 @@ static void SyncDCompState(HWND hwnd, float winW, float winH, bool animate);
 #define WM_ENGINE_EVENT  (WM_APP + 3)
 #define WM_ROUTED_OPEN   (WM_APP + 10)  // [Phase 0] Reserved for pipe-routed file open
 constexpr UINT_PTR TIMER_ID_STARTUP_SHOW = 992;
+constexpr UINT_PTR TIMER_ID_NAVIGATOR_UPGRADE = 991;
 
 
 
@@ -3439,6 +3440,14 @@ static void ShowGallery(HWND hwnd) {
     SetTimer(hwnd, 998, 16, nullptr);
 }
 
+static void SyncNavigatorUpgradeTimer(HWND hwnd) {
+    if (g_navigator.HasPendingUpgrade()) {
+        SetTimer(hwnd, TIMER_ID_NAVIGATOR_UPGRADE, 33, nullptr);
+    } else {
+        KillTimer(hwnd, TIMER_ID_NAVIGATOR_UPGRADE);
+    }
+}
+
 static bool OpenPathOrDirectory(HWND hwnd, const std::wstring& path, bool clearThumbCache) {
     namespace fs = std::filesystem;
 
@@ -3452,6 +3461,7 @@ static bool OpenPathOrDirectory(HWND hwnd, const std::wstring& path, bool clearT
     g_editState.Reset();
     g_viewState.Reset();
     g_navigator.Initialize(path);
+    SyncNavigatorUpgradeTimer(hwnd);
     if (clearThumbCache) {
         g_thumbMgr.ClearCache();
     }
@@ -7022,6 +7032,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int nCmdSh
         }
         if (!isTitanCandidate) {
           g_navigator.Initialize(initialImagePath);
+          SyncNavigatorUpgradeTimer(hwnd);
           LoadImageAsync(hwnd, initialImagePath);
           startedInitialLoadEarly = true;
           deferStartupShow = true;
@@ -7107,6 +7118,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int nCmdSh
         ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
         if (GetOpenFileNameW(&ofn)) {
             g_navigator.Initialize(szFile);
+            SyncNavigatorUpgradeTimer(hwnd);
             LoadImageAsync(hwnd, szFile);
             // [Fix Race] Force check here too
              PostMessageW(hwnd, WM_ENGINE_EVENT, 0, 0); 
@@ -7566,6 +7578,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 }
             } else {
                 KillTimer(hwnd, 998);
+            }
+        }
+
+        if (wParam == TIMER_ID_NAVIGATOR_UPGRADE) {
+            if (g_navigator.ApplyPendingUpgradeIfReady()) {
+                if (g_gallery.IsVisible()) {
+                    g_gallery.SyncSelectedIndex(g_navigator.Index());
+                }
+                RequestRepaint(PaintLayer::All);
+            }
+
+            if (!g_navigator.HasPendingUpgrade()) {
+                KillTimer(hwnd, TIMER_ID_NAVIGATOR_UPGRADE);
             }
         }
         
@@ -8663,6 +8688,7 @@ SKIP_EDGE_NAV:;
                          // Only load if different from current image
                          if (path != g_imagePath) {
                              g_navigator.Initialize(path);
+                             SyncNavigatorUpgradeTimer(hwnd);
                              LoadImageAsync(hwnd, path.c_str());
                          }
                     }
@@ -8933,6 +8959,7 @@ SKIP_EDGE_NAV:;
                      if (idx >= 0 && idx < (int)g_navigator.Count()) {
                          std::wstring path = g_navigator.GetFile(idx);
                          g_navigator.Initialize(path);
+                         SyncNavigatorUpgradeTimer(hwnd);
                          LoadImageAsync(hwnd, path.c_str());
                      }
                      RequestRepaint(PaintLayer::All);
@@ -9045,6 +9072,7 @@ SKIP_EDGE_NAV:;
                         g_compare.left.valid = true;
                         if (!g_imagePath.empty()) {
                             g_navigator.Initialize(g_imagePath);
+                            SyncNavigatorUpgradeTimer(hwnd);
                         }
                         MarkCompareDirty();
                         RequestRepaint(PaintLayer::Image | PaintLayer::Static);
@@ -9496,6 +9524,7 @@ SKIP_EDGE_NAV:;
                          // Only load if different from current image
                          if (path != g_imagePath) {
                              g_navigator.Initialize(path); 
+                             SyncNavigatorUpgradeTimer(hwnd);
                              LoadImageAsync(hwnd, path.c_str());
                          }
                     }
@@ -9996,6 +10025,7 @@ SKIP_EDGE_NAV:;
                         g_editState.Reset();
                         g_viewState.Reset();
                         g_navigator.Initialize(szFile);
+                        SyncNavigatorUpgradeTimer(hwnd);
                         g_thumbMgr.ClearCache(); // Fix: Clear old thumbnails on folder switch
                     LoadImageAsync(hwnd, szFile);
                 }
@@ -10250,6 +10280,7 @@ SKIP_EDGE_NAV:;
                     if (MoveFileW(g_imagePath.c_str(), newPath.c_str())) {
                         g_imagePath = newPath;
                         g_navigator.Initialize(newPath); // Update navigator list explicitly
+                        SyncNavigatorUpgradeTimer(hwnd);
                         
                         // Reload image from new path
                         g_preservedViewState = g_viewState;
@@ -10275,7 +10306,7 @@ SKIP_EDGE_NAV:;
                 size_t lastSlash = recycleTarget.find_last_of(L"\\/");
                 std::wstring filename = (lastSlash != std::wstring::npos) ? recycleTarget.substr(lastSlash + 1) : recycleTarget;
                 FileNavigator tempNav;
-                tempNav.Initialize(recycleTarget);
+                tempNav.Initialize(recycleTarget, false);
 
                 bool confirmed = true;
                 if (g_config.ConfirmDelete) {
@@ -10407,6 +10438,7 @@ SKIP_EDGE_NAV:;
                              // NavigateTo doesn't init navigator. 
                              // Let's call Initialize(nextPath) to refresh list and set index.
                              g_navigator.Initialize(nextPath);
+                             SyncNavigatorUpgradeTimer(hwnd);
                              LoadImageAsync(hwnd, nextPath);
                              if (IsCompareModeActive()) {
                                  MarkCompareDirty();
@@ -10414,6 +10446,7 @@ SKIP_EDGE_NAV:;
                         } else {
                              // Empty folder?
                              g_navigator.Initialize(L"");
+                             SyncNavigatorUpgradeTimer(hwnd);
                              if (IsCompareModeActive()) {
                                  ExitCompareMode(hwnd);
                              }
@@ -10577,6 +10610,7 @@ SKIP_EDGE_NAV:;
             g_runtime.SortOrder = wmId - IDM_SORT_AUTO;
             if (!g_imagePath.empty()) {
                 g_navigator.Initialize(g_imagePath); // Re-initialize to re-sort
+                SyncNavigatorUpgradeTimer(hwnd);
             }
             break;
         }
@@ -10586,6 +10620,7 @@ SKIP_EDGE_NAV:;
             g_runtime.SortDescending = (wmId == IDM_SORT_DESCENDING);
             if (!g_imagePath.empty()) {
                 g_navigator.Initialize(g_imagePath); // Re-initialize to re-sort
+                SyncNavigatorUpgradeTimer(hwnd);
             }
             break;
         }
@@ -12256,7 +12291,7 @@ void NavigateEdge(HWND hwnd, bool toLast) {
     if (IsCompareModeActive() && g_compare.selectedPane == ComparePane::Left) {
         if (!g_compare.left.valid || g_compare.left.path.empty()) return;
         FileNavigator tempNav;
-        tempNav.Initialize(g_compare.left.path);
+        tempNav.Initialize(g_compare.left.path, false);
         if (tempNav.Count() <= 0) return;
 
         std::wstring path = toLast ? tempNav.Last() : tempNav.First();
@@ -12311,7 +12346,7 @@ void Navigate(HWND hwnd, int direction) {
     if (IsCompareModeActive() && g_compare.selectedPane == ComparePane::Left) {
         if (!g_compare.left.valid || g_compare.left.path.empty()) return;
         FileNavigator tempNav;
-        tempNav.Initialize(g_compare.left.path);
+        tempNav.Initialize(g_compare.left.path, false);
         if (tempNav.Count() <= 0) return;
 
         std::wstring path = (direction > 0)
@@ -12357,6 +12392,7 @@ void Navigate(HWND hwnd, int direction) {
             std::wstring crossMsg = g_navigator.GetCrossFolderMessage();
             if (!crossMsg.empty()) {
                 g_navigator.Initialize(path); // Update playlist to new folder
+                SyncNavigatorUpgradeTimer(hwnd);
                 g_osd.Show(hwnd, crossMsg.c_str());
             } else if (g_navigator.HitEnd() && g_runtime.NavLoop) {
                 wchar_t buf[256];
@@ -12390,6 +12426,7 @@ void Navigate(HWND hwnd, int direction) {
         std::wstring crossMsg = g_navigator.GetCrossFolderMessage();
         if (!crossMsg.empty()) {
             g_navigator.Initialize(path); // Update playlist to new folder
+            SyncNavigatorUpgradeTimer(hwnd);
             g_osd.Show(hwnd, crossMsg.c_str());
         } else if (g_navigator.HitEnd() && g_runtime.NavLoop) {
             wchar_t buf[256];
