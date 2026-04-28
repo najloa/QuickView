@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <cwctype>
 #include <functional>  // for std::hash
+#include <unordered_set>
 #include <unordered_map>
 #include <mutex>
+#include <Windows.h>
 #include <Shlwapi.h>   // for StrCmpLogicalW
 #include "EditState.h" // for g_runtime
 #include "exif.h"      // for easyexif
@@ -222,7 +224,7 @@ private:
         std::wstring name;
         std::wstring type;
         uintmax_t size = 0;
-        std::filesystem::file_time_type modified{};
+        uint64_t modifiedTicks = 0;
         std::string exifDate;
     };
 
@@ -233,8 +235,13 @@ private:
     };
 
     struct CacheRecord {
-        std::filesystem::file_time_type directoryWriteTime{};
+        uint64_t directoryWriteTime = 0;
         DirectorySnapshot snapshot;
+    };
+
+    struct FolderCacheRecord {
+        uint64_t directoryWriteTime = 0;
+        std::vector<std::wstring> folders;
     };
 
     struct CacheKey {
@@ -260,10 +267,35 @@ private:
 
     static bool IsSupportedExtension(std::wstring ext) {
         std::transform(ext.begin(), ext.end(), ext.begin(), [](wchar_t c) { return std::towlower(c); });
-        for (const auto& supp : QuickView::SUPPORTED_EXTENSIONS) {
-            if (ext == supp) return true;
+        const auto& supported = GetSupportedExtensionSet();
+        return supported.find(ext) != supported.end();
+    }
+
+    static const std::unordered_set<std::wstring>& GetSupportedExtensionSet() {
+        static const std::unordered_set<std::wstring> supported = [] {
+            std::unordered_set<std::wstring> exts;
+            exts.reserve(std::size(QuickView::SUPPORTED_EXTENSIONS));
+            for (const auto& ext : QuickView::SUPPORTED_EXTENSIONS) {
+                exts.emplace(ext);
+            }
+            return exts;
+        }();
+        return supported;
+    }
+
+    static uint64_t FileTimeToUint64(const FILETIME& fileTime) {
+        ULARGE_INTEGER value{};
+        value.LowPart = fileTime.dwLowDateTime;
+        value.HighPart = fileTime.dwHighDateTime;
+        return value.QuadPart;
+    }
+
+    static uint64_t TryGetDirectoryWriteTime(const std::filesystem::path& dir) {
+        WIN32_FILE_ATTRIBUTE_DATA data{};
+        if (GetFileAttributesExW(dir.c_str(), GetFileExInfoStandard, &data)) {
+            return FileTimeToUint64(data.ftLastWriteTime);
         }
-        return false;
+        return 0;
     }
 
     static std::string ReadExifDate(const std::wstring& path) {
@@ -282,49 +314,49 @@ private:
         return {};
     }
 
-    static std::filesystem::file_time_type TryGetDirectoryWriteTime(const std::filesystem::path& dir) {
-        try {
-            return std::filesystem::last_write_time(dir);
-        } catch (...) {
-            return {};
-        }
-    }
-
     static DirectorySnapshot BuildSnapshot(const std::filesystem::path& dir, int sortOrder, bool sortDesc) {
         namespace fs = std::filesystem;
 
         std::vector<Entry> entries;
-        try {
-            for (const auto& entry : fs::directory_iterator(dir)) {
-                if (!entry.is_regular_file()) continue;
+        const std::wstring searchPattern = (dir / L"*").wstring();
 
-                fs::path path = entry.path();
-                std::wstring ext = path.extension().wstring();
-                if (!IsSupportedExtension(ext)) continue;
+        WIN32_FIND_DATAW findData{};
+        HANDLE findHandle = FindFirstFileExW(
+            searchPattern.c_str(),
+            FindExInfoBasic,
+            &findData,
+            FindExSearchNameMatch,
+            nullptr,
+            FIND_FIRST_EX_LARGE_FETCH);
 
-                Entry item;
-                item.path = path.wstring();
-                item.name = path.filename().wstring();
-                std::transform(ext.begin(), ext.end(), ext.begin(), [](wchar_t c) { return std::towlower(c); });
-                item.type = ext;
+        if (findHandle == INVALID_HANDLE_VALUE) {
+            return {};
+        }
 
-                try {
-                    item.size = entry.file_size();
-                } catch (...) {
-                    item.size = 0;
-                }
+        do {
+            if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) continue;
 
-                try {
-                    item.modified = entry.last_write_time();
-                } catch (...) {}
+            std::wstring name = findData.cFileName;
+            fs::path path = dir / name;
+            std::wstring ext = path.extension().wstring();
+            if (!IsSupportedExtension(ext)) continue;
 
-                if (sortOrder == 3) {
-                    item.exifDate = ReadExifDate(item.path);
-                }
+            Entry item;
+            item.path = path.wstring();
+            item.name = std::move(name);
+            std::transform(ext.begin(), ext.end(), ext.begin(), [](wchar_t c) { return std::towlower(c); });
+            item.type = ext;
+            item.size = (static_cast<uint64_t>(findData.nFileSizeHigh) << 32) | findData.nFileSizeLow;
+            item.modifiedTicks = FileTimeToUint64(findData.ftLastWriteTime);
 
-                entries.push_back(std::move(item));
+            if (sortOrder == 3) {
+                item.exifDate = ReadExifDate(item.path);
             }
-        } catch (...) {}
+
+            entries.push_back(std::move(item));
+        } while (FindNextFileW(findHandle, &findData));
+
+        FindClose(findHandle);
 
         std::sort(entries.begin(), entries.end(), [sortOrder, sortDesc](const Entry& a, const Entry& b) {
             int cmp = 0;
@@ -334,8 +366,8 @@ private:
                     cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
                     break;
                 case 2: // Modified
-                    if (a.modified < b.modified) cmp = -1;
-                    else if (a.modified > b.modified) cmp = 1;
+                    if (a.modifiedTicks < b.modifiedTicks) cmp = -1;
+                    else if (a.modifiedTicks > b.modifiedTicks) cmp = 1;
                     else cmp = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
                     break;
                 case 3: // Date Taken
@@ -403,6 +435,64 @@ private:
         return record.snapshot;
     }
 
+    static std::vector<std::wstring> EnumerateDirectoriesSorted(const std::filesystem::path& dir) {
+        std::vector<std::wstring> folders;
+        const std::wstring searchPattern = (dir / L"*").wstring();
+
+        WIN32_FIND_DATAW findData{};
+        HANDLE findHandle = FindFirstFileExW(
+            searchPattern.c_str(),
+            FindExInfoBasic,
+            &findData,
+            FindExSearchNameMatch,
+            nullptr,
+            FIND_FIRST_EX_LARGE_FETCH);
+
+        if (findHandle == INVALID_HANDLE_VALUE) {
+            return folders;
+        }
+
+        do {
+            if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) continue;
+            if (wcscmp(findData.cFileName, L".") == 0 || wcscmp(findData.cFileName, L"..") == 0) continue;
+            folders.push_back((dir / findData.cFileName).wstring());
+        } while (FindNextFileW(findHandle, &findData));
+
+        FindClose(findHandle);
+
+        std::sort(folders.begin(), folders.end(), [](const std::wstring& a, const std::wstring& b) {
+            return StrCmpLogicalW(a.c_str(), b.c_str()) < 0;
+        });
+
+        return folders;
+    }
+
+    static std::vector<std::wstring> GetOrBuildDirectoryList(const std::filesystem::path& dir) {
+        const std::wstring key = dir.wstring();
+        const auto writeTime = TryGetDirectoryWriteTime(dir);
+
+        {
+            std::lock_guard<std::mutex> lock(GetCacheMutex());
+            auto& cache = GetFolderCache();
+            auto it = cache.find(key);
+            if (it != cache.end() && it->second.directoryWriteTime == writeTime) {
+                return it->second.folders;
+            }
+        }
+
+        FolderCacheRecord record;
+        record.directoryWriteTime = writeTime;
+        record.folders = EnumerateDirectoriesSorted(dir);
+
+        {
+            std::lock_guard<std::mutex> lock(GetCacheMutex());
+            GetFolderCache()[key] = record;
+            PruneFolderCacheIfNeeded();
+        }
+
+        return record.folders;
+    }
+
     static void InvalidateDirectoryCache(const std::wstring& directory) {
         std::lock_guard<std::mutex> lock(GetCacheMutex());
         auto& cache = GetSnapshotCache();
@@ -413,6 +503,8 @@ private:
                 ++it;
             }
         }
+
+        GetFolderCache().erase(directory);
     }
 
     static std::unordered_map<CacheKey, CacheRecord, CacheKeyHash>& GetSnapshotCache() {
@@ -420,8 +512,21 @@ private:
         return cache;
     }
 
+    static std::unordered_map<std::wstring, FolderCacheRecord>& GetFolderCache() {
+        static std::unordered_map<std::wstring, FolderCacheRecord> cache;
+        return cache;
+    }
+
     static void PruneCacheIfNeeded() {
         auto& cache = GetSnapshotCache();
+        constexpr size_t kHardLimit = 64;
+        if (cache.size() > kHardLimit) {
+            cache.clear();
+        }
+    }
+
+    static void PruneFolderCacheIfNeeded() {
+        auto& cache = GetFolderCache();
         constexpr size_t kHardLimit = 64;
         if (cache.size() > kHardLimit) {
             cache.clear();
@@ -448,40 +553,23 @@ private:
         // [Logic Upgrade] Through Subfolders: 
         // 1. If moving forward, check if currentDir has subfolders first.
         if (next) {
-            try {
-                std::vector<std::wstring> subfolders;
-                for (const auto& entry : fs::directory_iterator(currentDir)) {
-                    if (entry.is_directory()) subfolders.push_back(entry.path().wstring());
+            auto subfolders = GetOrBuildDirectoryList(currentDir);
+            if (!subfolders.empty()) {
+                for (const auto& sub : subfolders) {
+                    FileNavigator tempNav;
+                    tempNav.Initialize(sub);
+                    if (tempNav.Count() > 0) return tempNav.First();
                 }
-                if (!subfolders.empty()) {
-                    std::sort(subfolders.begin(), subfolders.end(), [](const std::wstring& a, const std::wstring& b) {
-                        return StrCmpLogicalW(a.c_str(), b.c_str()) < 0;
-                    });
-                    for (const auto& sub : subfolders) {
-                        FileNavigator tempNav;
-                        tempNav.Initialize(sub);
-                        if (tempNav.Count() > 0) return tempNav.First();
-                    }
-                }
-            } catch (...) {}
+            }
         }
 
         // 2. Siblings navigation
         fs::path parentDir = currentDir.parent_path();
         if (parentDir.empty() || parentDir == currentDir) return L"";
 
-        std::vector<std::wstring> folders;
-        try {
-            for (const auto& entry : fs::directory_iterator(parentDir)) {
-                if (entry.is_directory()) folders.push_back(entry.path().wstring());
-            }
-        } catch(...) { return L""; }
+        std::vector<std::wstring> folders = GetOrBuildDirectoryList(parentDir);
 
         if (folders.empty()) return L"";
-
-        std::sort(folders.begin(), folders.end(), [](const std::wstring& a, const std::wstring& b){
-             return StrCmpLogicalW(a.c_str(), b.c_str()) < 0;
-        });
 
         std::wstring currentStr = currentDir.wstring();
         auto it = std::find(folders.begin(), folders.end(), currentStr);
