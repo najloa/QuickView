@@ -32,6 +32,29 @@ inline ImageID ComputePathHash(const std::wstring& path) {
 
 class FileNavigator {
 public:
+    void InitializeFileAnchor(const std::wstring& currentPath) {
+        namespace fs = std::filesystem;
+        fs::path p(currentPath);
+        if (currentPath.empty() || !fs::exists(p) || fs::is_directory(p)) return;
+
+        CancelPendingUpgrade();
+        m_files.clear();
+        m_sizes.clear();
+        m_ids.clear();
+        m_currentIndex = 0;
+        m_currentDir = p.parent_path().wstring();
+
+        m_files.push_back(p.wstring());
+        try {
+            m_sizes.push_back(fs::file_size(p));
+        } catch (...) {
+            m_sizes.push_back(0);
+        }
+        m_ids.push_back(ComputePathHash(m_files[0]));
+
+        StartAsyncUpgrade(m_currentDir.empty() ? p.parent_path() : fs::path(m_currentDir), false);
+    }
+
     void Initialize(const std::wstring& currentPath, bool allowAsync = true) {
         namespace fs = std::filesystem;
         fs::path p(currentPath);
