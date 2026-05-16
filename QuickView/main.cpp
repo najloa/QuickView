@@ -3460,15 +3460,17 @@ static bool OpenPathOrDirectory(HWND hwnd, const std::wstring& path, bool clearT
 
     g_editState.Reset();
     g_viewState.Reset();
-    g_navigator.Initialize(path);
-    SyncNavigatorUpgradeTimer(hwnd);
     if (clearThumbCache) {
         g_thumbMgr.ClearCache();
     }
 
     if (isDirectory) {
+        g_navigator.Initialize(path);
+        SyncNavigatorUpgradeTimer(hwnd);
         ShowGallery(hwnd);
     } else {
+        g_navigator.InitializeFileAnchor(path);
+        SyncNavigatorUpgradeTimer(hwnd);
         LoadImageAsync(hwnd, path);
     }
 
@@ -7031,7 +7033,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int nCmdSh
           isTitanCandidate = isSupportedFormat && (sizeTrigger || pixelTrigger);
         }
         if (!isTitanCandidate) {
-          g_navigator.Initialize(initialImagePath);
+          g_navigator.InitializeFileAnchor(initialImagePath);
           SyncNavigatorUpgradeTimer(hwnd);
           LoadImageAsync(hwnd, initialImagePath);
           startedInitialLoadEarly = true;
@@ -7117,7 +7119,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int nCmdSh
         ofn.lpstrFilter = filterStr.c_str();
         ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
         if (GetOpenFileNameW(&ofn)) {
-            g_navigator.Initialize(szFile);
+            g_navigator.InitializeFileAnchor(szFile);
             SyncNavigatorUpgradeTimer(hwnd);
             LoadImageAsync(hwnd, szFile);
             // [Fix Race] Force check here too
@@ -10036,7 +10038,7 @@ SKIP_EDGE_NAV:;
                         }
                         g_editState.Reset();
                         g_viewState.Reset();
-                        g_navigator.Initialize(szFile);
+                        g_navigator.InitializeFileAnchor(szFile);
                         SyncNavigatorUpgradeTimer(hwnd);
                         g_thumbMgr.ClearCache(); // Fix: Clear old thumbnails on folder switch
                     LoadImageAsync(hwnd, szFile);
